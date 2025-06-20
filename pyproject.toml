@@ -1,0 +1,19 @@
+[project]
+name = "sakhi"
+version = "0.0.1"
+description = "sakhi LLM code"
+authors = [
+    { name = "Abhinav Reddy Mandli", email = "raabhinav65@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+
+# CLI entrypoint
+[project.scripts]
+sakhi = "sakhi.cli.main:main"
+
+
+[tool.setuptools.packages.find]
+include = ["sakhi*"]
+exclude = ["venv_transformers*"]
