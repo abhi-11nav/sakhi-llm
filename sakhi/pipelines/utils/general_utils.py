@@ -32,8 +32,8 @@ def do_sanity_checks(config):
 
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
-        os.environ["MASTER_ADDR"] = config.train_hyperparameters.master_addr
-        os.environ["MASTER_PORT"] = config.train_hyperparameters.master_port
+        os.environ["MASTER_ADDR"] = config.train_parameters.master_addr
+        os.environ["MASTER_PORT"] = config.train_parameters.master_port
 
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
         torch.cuda.set_device(rank)
@@ -50,13 +50,13 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
         num_layers=config.model_parameters.num_layers,
     ).to(rank)
 
-    if config.train_hyperparameters.call_torch_compile_on_model:
+    if config.train_parameters.call_torch_compile_on_model:
         model = torch.compile(model)
 
-    if config.train_hyperparameters.resume:
-        if os.path.isfile(config.train_hyperparameters.resume):
+    if config.train_parameters.resume:
+        if os.path.isfile(config.train_parameters.resume):
             state_dict = torch.load(
-                config.train_hyperparameters.resume, map_location=f"cuda:{rank}"
+                config.train_parameters.resume, map_location=f"cuda:{rank}"
             )
             model.load_state_dict(state_dict)
 

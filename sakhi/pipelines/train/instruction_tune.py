@@ -7,7 +7,6 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import wandb
-from torch.amp import GradScaler, autocast
 from torch.distributed import destroy_process_group
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -32,13 +31,11 @@ def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
         for batch in loader:
             input_ids = batch["input_ids"].to(rank, non_blocking=True)
             labels = batch["labels"].to(rank, non_blocking=True)
-
-            with autocast(device_type="cuda"):
-                outputs = model(input_ids)
-                loss = criterion(
-                    outputs.view(-1, outputs.size(-1)),
-                    labels.view(-1),
-                )
+            outputs = model(input_ids)
+            loss = criterion(
+                outputs.view(-1, outputs.size(-1)),
+                labels.view(-1),
+            )
 
             total_loss += loss.item()
             num_batches += 1
@@ -48,11 +45,7 @@ def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
     return avg_loss
 
 
-def train(
-    rank: int,
-    world_size: int,
-    config: SakhiConfig,
-):
+def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     try:
         log_dir = config.paths.log_dir
         logger = setup_logging(rank, log_dir=log_dir)
@@ -94,9 +87,9 @@ def train(
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.init(
-                project="Sakhi-Model-Training",
+                project="Sakhi-Model Instruction Tuning",
                 config={
                     "epochs": config.train_parameters.num_epochs,
                     "batch_size": config.train_parameters.batch_size,
@@ -129,6 +122,7 @@ def train(
         train_loader, val_loader, test_loader = get_dataloaders(
             data_path=config.paths.dataset_path,
             batch_size=config.train_parameters.batch_size,
+            tokenizer=tokenizer,
             num_workers=config.data_loader.num_workers,
             pin_memory=config.data_loader.pin_memory,
             max_length=config.model_parameters.chunk_length,
@@ -150,8 +144,6 @@ def train(
 
         logger.info("Starting training loop...")
         training_start_time = time.time()
-
-        scaler = GradScaler()
 
         # Training loop
         for epoch in range(config.train_parameters.num_epochs):
@@ -182,29 +174,24 @@ def train(
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
                 labels = batch["labels"].to(rank, non_blocking=True)
 
-                with autocast(device_type="cuda"):
-                    output_logits = sakhi_model(input_ids)
-                    loss = criterion(
-                        output_logits.view(-1, config.model_parameters.vocab_size),
-                        labels.reshape(-1),
-                    )
+                output_logits = sakhi_model(input_ids)
+                loss = criterion(
+                    output_logits.view(-1, config.model_parameters.vocab_size),
+                    labels.reshape(-1),
+                )
 
-                    loss = loss / grad_accum_steps
+                loss = loss / grad_accum_steps
+
                 # Backward pass
-                scaler.scale(loss).backward()
+                loss.backward()
 
                 # Gradient accumulation
                 if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(train_loader):
-                    scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(
                         sakhi_model.parameters(),
                         max_norm=config.train_parameters.gradient_clipping_max_norm,
                     )
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad()
-
-                    scheduler.step()
+                    optimizer.step()
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()
@@ -220,7 +207,7 @@ def train(
                     )
 
                 if i % config.train_parameters.log_every_n_steps == 0:
-                    if config.logging.wandb:
+                    if config.logger.wandb:
                         wandb.log(
                             {
                                 "epoch": epoch + 1,
@@ -311,7 +298,7 @@ def train(
                 torch.save(state_dict, epoch_model_filename)
                 logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
 
-                if config.logging.wandb:
+                if config.logger.wandb:
                     wandb.log(
                         {
                             "epoch": epoch + 1,
@@ -350,7 +337,7 @@ def train(
             torch.cuda.empty_cache()
         total_training_time = time.time() - training_start_time
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.finish()
 
         # Final logging
@@ -410,15 +397,21 @@ def instruction_tuning_run(config: SakhiConfig):
     )
 
     config.model_parameters.vocab_size = len(tokenizer)
-    del tokenizer
 
     if world_size > 1:
         # DDP
         mp.spawn(
             train,
-            args=(world_size, config),
+            args=(world_size, config, tokenizer),
             nprocs=world_size,
             join=True,
         )
     else:
-        train(rank=0, world_size=world_size, config=config)
+        train(rank=0, world_size=world_size, config=config, tokenizer=tokenizer)
+
+
+if __name__ == "__main__":
+    config = "sakhi/configs/sakhi_telugu__681M.yaml"
+
+    config = SakhiConfig._load_config(config_path=config)
+    instruction_tuning_run(config=config)
