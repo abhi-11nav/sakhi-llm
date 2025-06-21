@@ -2,27 +2,48 @@
 
 A transformer-based language model pretrained from scratch on a cleaned and deduplicated Telugu corpus. It is trained on high-quality, natural Telugu text collected from diverse sources.
 
-## License
+---
 
-MIT
+- **Model Availability:** [Hugging Face – abhi11nav/sakhi-telugu-681M-pretrained-0625](https://huggingface.co/abhi11nav/sakhi-telugu-681M-pretrained-0625)
 
-## Language
+## Inference
 
-- Telugu (`te`)
+To run inference, use the following code:
 
-## Pipeline Tag
+> **Note:** This is a **pretrained** model only. It is not instruction-tuned or fine-tuned for specific downstream tasks.
 
-- `text-generation`
+```python
+import torch
 
-## Datasets Used
+from sakhi import load_model, load_tokenizer
+from sakhi.pipelines.inference.inference import generate_text
+
+if __name__ == "__main__":
+    model_path = "abhi11nav/sakhi-telugu-681M-pretrained-0625"
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tokenizer = load_tokenizer(path=model_path)
+    model = load_model(path=model_path, device=device)
+
+    input_text = "హలో"
+    text = generate_text(
+        prompt=input_text,
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=50,
+        device=device,
+    )
+
+    print(text)
+```
+
+## Dataset Preparation
+
+### Datasets Used
 
 - [`ai4bharat/sangraha`](https://huggingface.co/datasets/ai4bharat/sangraha)
 - [`allenai/c4`](https://huggingface.co/datasets/allenai/c4)
 - [`oscar-corpus/oscar`](https://huggingface.co/datasets/oscar-corpus/oscar)
-
----
-
-## Dataset Preparation
 
 The training corpus was carefully prepared using the following steps to ensure data quality, linguistic relevance, and uniqueness:
 
@@ -69,6 +90,7 @@ model_parameters:
 - **Context Length**: 1024 tokens
 - **Layers**: 10 transformer decoder blocks
 - **Vocabulary Size**: 64,000 (custom Byte-Level BPE)
+- **Positional Encoding:** Rotary Positional Embeddings (RoPE), no learned or absolute positional embeddings
 
 ## Training Details
 
@@ -98,8 +120,7 @@ train_parameters:
 - **Logging**: Every 100 steps using [Weights & Biases](https://wandb.ai/)
 - **Checkpointing**: Every 25,000 steps
 
-> 💡 Full Weights & Biases logs will be attached **(step x 100)**
-> [![Weights & Biases](https://img.shields.io/badge/Weights_%26_Biases-Project-blue)](https://api.wandb.ai/links/abhi11nav/g9oatq0u)
+> 💡 Full Weights & Biases logs will be attached **(step x 100)** > [![Weights & Biases](https://img.shields.io/badge/Weights_%26_Biases-Project-blue)](https://api.wandb.ai/links/abhi11nav/g9oatq0u)
 
 ### Hardware Setup
 
@@ -119,3 +140,12 @@ paths:
 ```
 
 > ⚠️ Paths are placeholders — these should be replaced with actual paths
+
+---
+
+### 📚 References
+
+For hyperparameter selection and RoPE implementation, the following tutorials were especially helpful:
+
+- [📺 Stanford CS336](https://youtu.be/SQ3fZ1sAqXI?si=gymL4yFS60TkO8PY)
+- [📺 Coding LLaMA 2 from scratch in PyTorch](https://youtu.be/oM4VmoabDAI?si=wfGdbLlfaJqJbR99)
