@@ -15,7 +15,6 @@ from transformers import PreTrainedTokenizerFast
 from sakhi.configs.utils.config import SakhiConfig
 from sakhi.data.custom_dataset.instruction_tune.custom_dataset import \
     get_dataloaders
-from sakhi.data.custom_dataset.pretraining.custom_dataset import CustomDataset
 from sakhi.pipelines.utils.general_utils import (do_sanity_checks,
                                                  get_sakhi_model, setup,
                                                  setup_logging)
@@ -129,7 +128,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
         )
 
         # Loss, Optimizer and LRScheduler
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
         optimizer = torch.optim.AdamW(
             sakhi_model.parameters(),
             lr=float(config.train_parameters.init_learning_rate),
