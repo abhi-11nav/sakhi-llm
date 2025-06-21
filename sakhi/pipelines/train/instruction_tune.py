@@ -14,11 +14,38 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhi.configs.utils.config import SakhiConfig
+from sakhi.data.custom_dataset.instruction_tune.custom_dataset import \
+    get_dataloaders
 from sakhi.data.custom_dataset.pretraining.custom_dataset import CustomDataset
 from sakhi.pipelines.utils.general_utils import (do_sanity_checks,
                                                  get_sakhi_model, setup,
                                                  setup_logging)
 from sakhi.pipelines.utils.training_utils import hash_tensor, set_seed
+
+
+def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
+    model.eval()
+    total_loss = 0
+    num_batches = 0
+
+    with torch.no_grad():
+        for batch in loader:
+            input_ids = batch["input_ids"].to(rank, non_blocking=True)
+            labels = batch["labels"].to(rank, non_blocking=True)
+
+            with autocast(device_type="cuda"):
+                outputs = model(input_ids)
+                loss = criterion(
+                    outputs.view(-1, outputs.size(-1)),
+                    labels.view(-1),
+                )
+
+            total_loss += loss.item()
+            num_batches += 1
+
+    model.train()
+    avg_loss = total_loss / max(num_batches, 1)
+    return avg_loss
 
 
 def train(
@@ -58,10 +85,6 @@ def train(
 
         # Create dataset
         logger.info("Creating dataset")
-        dataset = CustomDataset(
-            config.paths.dataset_path,
-            chunk_length=config.model_parameters.chunk_length,
-        )
 
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
 
@@ -102,11 +125,13 @@ def train(
         logger.info(
             f"Initializing DataLoader with batch_size={config.train_parameters.batch_size}"
         )
-        data_loader = DataLoader(
-            dataset,
+
+        train_loader, val_loader, test_loader = get_dataloaders(
+            data_path=config.paths.dataset_path,
             batch_size=config.train_parameters.batch_size,
             num_workers=config.data_loader.num_workers,
             pin_memory=config.data_loader.pin_memory,
+            max_length=config.model_parameters.chunk_length,
         )
 
         # Loss, Optimizer and LRScheduler
@@ -119,7 +144,7 @@ def train(
         # After optimizer creation:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=len(data_loader),
+            T_max=len(train_loader),
             eta_min=config.train_parameters.min_learning_rate,
         )
 
@@ -142,12 +167,12 @@ def train(
 
             if rank == 0:
                 batch_iterator = tqdm(
-                    enumerate(data_loader),
-                    total=len(data_loader),
+                    enumerate(train_loader),
+                    total=len(train_loader),
                     desc=f"Epoch {epoch + 1}",
                 )
             else:
-                batch_iterator = enumerate(data_loader)
+                batch_iterator = enumerate(train_loader)
 
             optimizer.zero_grad()
 
@@ -169,7 +194,7 @@ def train(
                 scaler.scale(loss).backward()
 
                 # Gradient accumulation
-                if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(data_loader):
+                if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(train_loader):
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(
                         sakhi_model.parameters(),
@@ -199,7 +224,7 @@ def train(
                         wandb.log(
                             {
                                 "epoch": epoch + 1,
-                                "step": i + epoch * len(data_loader),
+                                "step": i + epoch * len(train_loader),
                                 "batch_loss": loss_value,
                                 "batch_time": batch_time,
                                 "learning_rate": scheduler.get_last_lr()[0],
@@ -265,8 +290,36 @@ def train(
 
             epoch_time = time.time() - epoch_start_time
 
+            # Evaluate on validation and test sets
+            val_loss = evaluate(val_loader, sakhi_model, criterion, rank)
+            test_loss = evaluate(test_loader, sakhi_model, criterion, rank)
+
             # Calculate and log epoch summary
             if rank == 0:
+                logger.info(f"Validation Loss: {val_loss:.4f}")
+                logger.info(f"Test Loss: {test_loss:.4f}")
+
+                model_save_dir = config.paths.model_dir
+                epoch_model_filename = (
+                    f"{model_save_dir}/soki_model_epoch_{epoch + 1}.pth"
+                )
+                state_dict = (
+                    sakhi_model.module.state_dict()
+                    if world_size > 1
+                    else sakhi_model.state_dict()
+                )
+                torch.save(state_dict, epoch_model_filename)
+                logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
+
+                if config.logging.wandb:
+                    wandb.log(
+                        {
+                            "epoch": epoch + 1,
+                            "val_loss": val_loss,
+                            "test_loss": test_loss,
+                        }
+                    )
+
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
                 min_loss = min(batch_losses) if batch_losses else 0
                 max_loss = max(batch_losses) if batch_losses else 0
@@ -289,10 +342,11 @@ def train(
                     "epoch_time": epoch_time,
                     "batches_per_sec": num_batches / epoch_time,
                     "timestamp": datetime.now().isoformat(),
+                    "val_loss": val_loss,
+                    "test_loss": test_loss,
                 }
                 training_data["epoch_summaries"].append(epoch_summary)
 
-            # Empty cache after each epoch
             torch.cuda.empty_cache()
         total_training_time = time.time() - training_start_time
 
@@ -343,7 +397,7 @@ def train(
             destroy_process_group()
 
 
-def pretraining_run(config: SakhiConfig):
+def instruction_tuning_run(config: SakhiConfig):
     # do sanity checks and set seed
     do_sanity_checks(config=config)
     set_seed(seed=config.train_parameters.seed)

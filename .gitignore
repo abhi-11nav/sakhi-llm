@@ -201,3 +201,4 @@ venv_sakhi/
 
 .DS_Store
 wandb/
+scripts/

@@ -6,6 +6,7 @@ import torch
 from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from sakhi.configs.utils.config import SakhiConfig
 from sakhi.model.model import SakhiModel
 
 
@@ -40,7 +41,7 @@ def setup(rank: int, world_size: int, config):
         torch.cuda.set_device(0)
 
 
-def get_sakhi_model(rank: int, world_size: int, config):
+def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
     model = SakhiModel(
         embed_dim=config.model_parameters.embed_dim,
         num_heads=config.model_parameters.num_heads,
