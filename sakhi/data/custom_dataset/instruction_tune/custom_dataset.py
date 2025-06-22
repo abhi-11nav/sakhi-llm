@@ -51,7 +51,7 @@ def get_dataloaders(
     tokenizer,
     batch_size: int = 12,
     max_length: int = 1024,
-    val_ratio: float = 0.1,
+    val_ratio: float = 0.05,
     test_ratio: float = 0.1,
     shuffle: bool = True,
     num_workers: int = 4,
