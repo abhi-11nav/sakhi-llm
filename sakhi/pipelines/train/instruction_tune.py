@@ -206,6 +206,8 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                         max_norm=config.train_parameters.gradient_clipping_max_norm,
                     )
                     optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()  
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()
@@ -295,6 +297,14 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
             val_loss = evaluate(val_loader, sakhi_model, criterion, rank)
             test_loss = evaluate(test_loader, sakhi_model, criterion, rank)
 
+            if config.logger.wandb:
+                wandb.log(
+                        {
+                            "val_loss": val_loss,
+                            "test_loss": test_loss,
+                            "rank": rank,
+                        }
+                    )
             # Calculate and log epoch summary
             if rank == 0:
                 logger.info(f"Validation Loss: {val_loss:.4f}")
@@ -312,13 +322,6 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 torch.save(state_dict, epoch_model_filename)
                 logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
 
-                if config.logger.wandb:
-                    wandb.log(
-                        {
-                            "val_loss": val_loss,
-                            "test_loss": test_loss,
-                        }
-                    )
 
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
                 min_loss = min(batch_losses) if batch_losses else 0
