@@ -23,24 +23,37 @@ from sakhi.pipelines.utils.training_utils import hash_tensor, set_seed
 
 def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
     model.eval()
-    total_loss = 0
+    total_loss = 0.0
     num_batches = 0
 
+    iterator = tqdm(loader, desc="Evaluating", disable=(rank != 0))
+
     with torch.no_grad():
-        for batch in loader:
+        for i, batch in enumerate(iterator):
             input_ids = batch["input_ids"].to(rank, non_blocking=True)
             labels = batch["labels"].to(rank, non_blocking=True)
+
             outputs = model(input_ids)
             loss = criterion(
                 outputs.view(-1, outputs.size(-1)),
                 labels.view(-1),
             )
 
-            total_loss += loss.item()
+            loss_value = loss.item()
+            total_loss += loss_value
             num_batches += 1
+
+            if rank == 0:
+                iterator.set_postfix(loss=loss_value)
+                if i % 10 == 0:  # Optional: log every N batches
+                    tqdm.write(f"[Rank 0] Eval Step {i}, Loss: {loss_value:.4f}")
 
     model.train()
     avg_loss = total_loss / max(num_batches, 1)
+
+    if rank == 0:
+        tqdm.write(f"[Rank 0] Evaluation completed. Average Loss: {avg_loss:.4f}")
+
     return avg_loss
 
 
@@ -125,6 +138,8 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
             num_workers=config.data_loader.num_workers,
             pin_memory=config.data_loader.pin_memory,
             max_length=config.model_parameters.chunk_length,
+            rank=rank,
+            world_size=world_size,
         )
 
         # Loss, Optimizer and LRScheduler
@@ -248,16 +263,16 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                     and i % save_every_n_steps == 0
                 ):
                     model_save_dir = config.paths.model_dir
-                    model_filename = (
-                        f"{model_save_dir}/soki_model_epoch_{epoch + 1}_step{i}.pth"
-                    )
-                    state_dict = (
-                        sakhi_model.module.state_dict()
-                        if world_size > 1
-                        else sakhi_model.state_dict()
-                    )
-                    torch.save(state_dict, model_filename)
-                    logger.info(f"Model saved to {model_filename}")
+                    # model_filename = (
+                    #     f"{model_save_dir}/soki_model_epoch_{epoch + 1}_step{i}.pth"
+                    # )
+                    # state_dict = (
+                    #     sakhi_model.module.state_dict()
+                    #     if world_size > 1
+                    #     else sakhi_model.state_dict()
+                    # )
+                    # torch.save(state_dict, model_filename)
+                    # logger.info(f"Model saved to {model_filename}")
 
                     training_data["model_saves"].append(
                         {
@@ -300,7 +315,6 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 if config.logger.wandb:
                     wandb.log(
                         {
-                            "epoch": epoch + 1,
                             "val_loss": val_loss,
                             "test_loss": test_loss,
                         }

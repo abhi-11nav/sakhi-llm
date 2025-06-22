@@ -1,7 +1,8 @@
 import json
 
 import torch
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import (DataLoader, Dataset, DistributedSampler, Subset,
+                              random_split)
 
 
 class InstructionDataset(Dataset):
@@ -56,6 +57,8 @@ def get_dataloaders(
     num_workers: int = 4,
     seed: int = 42,
     pin_memory: bool = False,
+    rank: int = 0,
+    world_size: int = 1,
 ):
     dataset = InstructionDataset(data_path, tokenizer, max_length=max_length)
 
@@ -71,18 +74,29 @@ def get_dataloaders(
             generator=torch.Generator().manual_seed(seed),
         )
     else:
-        train_dataset = torch.utils.data.Subset(dataset, range(0, train_len))
-        val_dataset = torch.utils.data.Subset(
-            dataset, range(train_len, train_len + val_len)
+        train_dataset = Subset(dataset, range(0, train_len))
+        val_dataset = Subset(dataset, range(train_len, train_len + val_len))
+        test_dataset = Subset(dataset, range(train_len + val_len, total_len))
+
+    # DistributedSampler if in DDP mode
+    if world_size > 1:
+        train_sampler = DistributedSampler(
+            train_dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
-        test_dataset = torch.utils.data.Subset(
-            dataset, range(train_len + val_len, total_len)
+        val_sampler = DistributedSampler(
+            val_dataset, num_replicas=world_size, rank=rank, shuffle=False
         )
+        test_sampler = DistributedSampler(
+            test_dataset, num_replicas=world_size, rank=rank, shuffle=False
+        )
+    else:
+        train_sampler = val_sampler = test_sampler = None
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=shuffle,
+        shuffle=(train_sampler is None and shuffle),
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -90,6 +104,7 @@ def get_dataloaders(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
+        sampler=val_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -97,6 +112,7 @@ def get_dataloaders(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
+        sampler=test_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )

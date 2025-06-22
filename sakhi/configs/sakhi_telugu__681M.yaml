@@ -12,10 +12,10 @@ model_parameters:
   vocab_size: 64000
 
 train_parameters:
-  batch_size: 8
-  num_epochs: 1
-  init_learning_rate: 1e-5
-  min_learning_rate: 1e-8
+  batch_size: 24
+  num_epochs: 3
+  init_learning_rate: 1e-4
+  min_learning_rate: 1e-7
   seed: 42
   master_addr: "localhost"
   master_port: "12355"
@@ -31,7 +31,7 @@ logger:
   wandb: True
 
 data_loader:
-  num_workers: 8
+  num_workers: 0
   pin_memory: true
 
 inference_parameters:
