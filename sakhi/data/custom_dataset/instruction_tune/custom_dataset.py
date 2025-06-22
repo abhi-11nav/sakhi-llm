@@ -1,4 +1,5 @@
 import json
+import re
 
 import torch
 from torch.utils.data import (DataLoader, Dataset, DistributedSampler, Subset,
@@ -19,30 +20,42 @@ class InstructionDataset(Dataset):
     def __getitem__(self, idx):
         entry = self.data[idx]
 
+        prefix = "Instruction"
+        response_tag = "response"
+        eos_token = self.tokenizer.eos_token
+
+        # Combine instruction + input
         if entry["telugu_input"] == entry["telugu_input"]:
-            prompt = f"{entry['telugu_instruction']} {entry['telugu_input']}"
+            prompt = f"{prefix}: {entry['telugu_instruction']} {entry['telugu_input']} "
         else:
-            prompt = entry["telugu_instruction"]
+            prompt = f"{prefix}: {entry['telugu_instruction']} "
 
-        input_ids = self.tokenizer(
-            prompt,
-            padding="max_length",
+        response = f"{response_tag}: {entry['telugu_output']} {eos_token}"
+        full_text = prompt + response
+
+        full_text = full_text.strip()
+        full_text = re.sub(r"\s+", " ", full_text)
+
+        tokenized = self.tokenizer(
+            full_text,
             truncation=True,
             max_length=self.max_length,
             return_tensors="pt",
-        )["input_ids"].squeeze(0)
-
-        label_ids = self.tokenizer(
-            entry["telugu_output"],
             padding="max_length",
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors="pt",
-        )["input_ids"].squeeze(0)
+        )
+
+        input_ids = tokenized["input_ids"].squeeze(0)
+        attention_mask = tokenized["attention_mask"].squeeze(0)
+
+        labels = input_ids.clone()
+        prompt_len = len(self.tokenizer(prompt)["input_ids"])
+        labels[:prompt_len] = -100
+        labels[input_ids == 1] = -100
 
         return {
             "input_ids": input_ids,
-            "labels": label_ids,
+            "attention_mask": attention_mask,
+            "labels": labels,
         }
 
 

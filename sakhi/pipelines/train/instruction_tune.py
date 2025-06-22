@@ -143,7 +143,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
         )
 
         # Loss, Optimizer and LRScheduler
-        criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+        criterion = nn.CrossEntropyLoss(ignore_index=-100)
         optimizer = torch.optim.AdamW(
             sakhi_model.parameters(),
             lr=float(config.train_parameters.init_learning_rate),
@@ -269,20 +269,20 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                     # torch.save(state_dict, model_filename)
                     # logger.info(f"Model saved to {model_filename}")
 
-                    training_data["model_saves"].append(
-                        {
-                            "epoch": epoch + 1,
-                            "step": i,
-                            "filename": model_filename,
-                            "timestamp": datetime.now().isoformat(),
-                        }
-                    )
+                    # training_data["model_saves"].append(
+                    #     {
+                    #         "epoch": epoch + 1,
+                    #         "step": i,
+                    #         "filename": model_filename,
+                    #         "timestamp": datetime.now().isoformat(),
+                    #     }
+                    # )
 
-                    json_filename = os.path.join(
-                        log_dir, f"training_data_rank_{rank}.json"
-                    )
-                    with open(json_filename, "w") as f:
-                        json.dump(training_data, f, indent=2)
+                    # json_filename = os.path.join(
+                    #     log_dir, f"training_data_rank_{rank}.json"
+                    # )
+                    # with open(json_filename, "w") as f:
+                    #     json.dump(training_data, f, indent=2)
 
             epoch_time = time.time() - epoch_start_time
 

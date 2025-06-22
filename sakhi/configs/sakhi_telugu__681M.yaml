@@ -12,10 +12,10 @@ model_parameters:
   vocab_size: 64000
 
 train_parameters:
-  batch_size: 24
+  batch_size: 12
   num_epochs: 3
   init_learning_rate: 1e-4
-  min_learning_rate: 1e-7
+  min_learning_rate: 1e-6
   seed: 42
   master_addr: "localhost"
   master_port: "12355"
