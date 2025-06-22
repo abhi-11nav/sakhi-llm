@@ -153,7 +153,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=len(train_loader),
-            eta_min=config.train_parameters.min_learning_rate,
+            eta_min=float(config.train_parameters.min_learning_rate),
         )
 
         logger.info("Starting training loop...")
@@ -207,20 +207,13 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                     )
                     optimizer.step()
                     scheduler.step()
-                    optimizer.zero_grad()  
+                    optimizer.zero_grad()
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()
                 epoch_loss += loss_value
                 num_batches += 1
                 batch_losses.append(loss_value)
-
-                if i < 10:
-                    local_rank = rank
-                    token_hash = hash_tensor(input_ids[0])
-                    logger.info(
-                        f"Dataset Duplication Info:: Rank {local_rank}, Step {i}, InputHash: {token_hash}"
-                    )
 
                 if i % config.train_parameters.log_every_n_steps == 0:
                     if config.logger.wandb:
@@ -299,12 +292,12 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
 
             if config.logger.wandb:
                 wandb.log(
-                        {
-                            "val_loss": val_loss,
-                            "test_loss": test_loss,
-                            "rank": rank,
-                        }
-                    )
+                    {
+                        "val_loss": val_loss,
+                        "test_loss": test_loss,
+                        "rank": rank,
+                    }
+                )
             # Calculate and log epoch summary
             if rank == 0:
                 logger.info(f"Validation Loss: {val_loss:.4f}")
@@ -321,7 +314,6 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 )
                 torch.save(state_dict, epoch_model_filename)
                 logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
-
 
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
                 min_loss = min(batch_losses) if batch_losses else 0

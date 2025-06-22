@@ -120,7 +120,7 @@ def train(
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=len(data_loader),
-            eta_min=config.train_parameters.min_learning_rate,
+            eta_min=float(config.train_parameters.min_learning_rate),
         )
 
         logger.info("Starting training loop...")
