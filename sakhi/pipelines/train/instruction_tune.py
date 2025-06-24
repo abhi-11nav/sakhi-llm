@@ -194,7 +194,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 output_logits = sakhi_model(input_ids)
                 loss = criterion(
                     output_logits.view(-1, output_logits.size(-1)),
-                    labels.reshape(-1),
+                    labels.view(-1),
                 )
 
                 loss = loss / grad_accum_steps
