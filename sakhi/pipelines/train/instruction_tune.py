@@ -191,7 +191,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
 
                 output_logits = sakhi_model(input_ids)
                 loss = criterion(
-                    output_logits.view(-1, config.model_parameters.vocab_size),
+                    output_logits.view(-1, output_logits.size(-1)),
                     labels.reshape(-1),
                 )
 
@@ -404,7 +404,7 @@ def instruction_tuning_run(config: SakhiConfig):
     }
     tokenizer.add_special_tokens(special_tokens_dict)
 
-    assert len(tokenizer) == 640002
+    assert len(tokenizer) == 64002
 
     world_size = (
         torch.cuda.device_count()
