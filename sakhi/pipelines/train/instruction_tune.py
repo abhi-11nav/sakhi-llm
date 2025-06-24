@@ -50,9 +50,11 @@ def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
 
     model.train()
     avg_loss = total_loss / max(num_batches, 1)
-
+    perplexity = torch.exp(torch.tensor(avg_loss))
     if rank == 0:
-        tqdm.write(f"[Rank 0] Evaluation completed. Average Loss: {avg_loss:.4f}")
+        tqdm.write(
+            f"[Rank 0] Eval completed. Avg Loss: {avg_loss:.4f}, Perplexity: {perplexity:.2f}"
+        )
 
     return avg_loss
 
@@ -217,12 +219,14 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 batch_losses.append(loss_value)
 
                 if i % config.train_parameters.log_every_n_steps == 0:
+                    perplexity = torch.exp(torch.tensor(loss_value)).item()
                     if config.logger.wandb:
                         wandb.log(
                             {
                                 "epoch": epoch + 1,
                                 "step": i + epoch * len(train_loader),
                                 "batch_loss": loss_value,
+                                "batch_perplexity": perplexity,
                                 "batch_time": batch_time,
                                 "learning_rate": scheduler.get_last_lr()[0],
                                 "rank": rank,
@@ -232,7 +236,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                     if rank == 0:
                         logger.info(
                             f"Epoch {epoch + 1}/{config.train_parameters.num_epochs}, Batch {i}, "
-                            f"Loss: {loss_value:.4f}, Batch Time: {batch_time:.2f}s"
+                            f"Batch {i}, Loss: {loss_value:.4f}, Perplexity: {perplexity:.2f}, Time: {batch_time:.2f}s"
                         )
 
                         # store to training_data dictionary
@@ -295,10 +299,13 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 wandb.log(
                     {
                         "val_loss": val_loss,
+                        "val_perplexity": float(torch.exp(torch.tensor(val_loss))),
                         "test_loss": test_loss,
+                        "test_perplexity": float(torch.exp(torch.tensor(test_loss))),
                         "rank": rank,
                     }
                 )
+
             # Calculate and log epoch summary
             if rank == 0:
                 logger.info(f"Validation Loss: {val_loss:.4f}")
@@ -317,6 +324,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
 
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
+                train_perplexity = torch.exp(torch.tensor(avg_loss)).item()
                 min_loss = min(batch_losses) if batch_losses else 0
                 max_loss = max(batch_losses) if batch_losses else 0
 
