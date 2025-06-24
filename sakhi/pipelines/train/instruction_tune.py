@@ -18,7 +18,7 @@ from sakhi.data.custom_dataset.instruction_tune.custom_dataset import \
 from sakhi.pipelines.utils.general_utils import (do_sanity_checks,
                                                  get_sakhi_model, setup,
                                                  setup_logging)
-from sakhi.pipelines.utils.training_utils import hash_tensor, set_seed
+from sakhi.pipelines.utils.training_utils import set_seed
 
 
 def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
@@ -96,6 +96,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
         # Create model and move to GPU
         logger.info("Initializing Sakhi model...")
         sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
+        sakhi_model.resize_token_embeddings(new_vocab_size=len(tokenizer))
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -398,13 +399,20 @@ def instruction_tuning_run(config: SakhiConfig):
     set_seed(seed=config.train_parameters.seed)
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
+    special_tokens_dict = {
+        "additional_special_tokens": ["<|instruction|>", "<|response|>"]
+    }
+    tokenizer.add_special_tokens(special_tokens_dict)
+
+    assert len(tokenizer) == 640002
+
     world_size = (
         torch.cuda.device_count()
         if config.train_parameters.num_gpus == -1
         else config.train_parameters.num_gpus
     )
 
-    config.model_parameters.vocab_size = len(tokenizer)
+    # config.model_parameters.vocab_size = len(tokenizer)
 
     if world_size > 1:
         # DDP

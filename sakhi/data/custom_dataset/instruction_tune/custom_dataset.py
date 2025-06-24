@@ -20,17 +20,17 @@ class InstructionDataset(Dataset):
     def __getitem__(self, idx):
         entry = self.data[idx]
 
-        prefix = "Instruction"
-        response_tag = "response"
+        prefix = "<|instruction|>"
+        response_tag = "<|response|>"
         eos_token = self.tokenizer.eos_token
 
         # Combine instruction + input
         if entry["telugu_input"] == entry["telugu_input"]:
-            prompt = f"{prefix}: {entry['telugu_instruction']} {entry['telugu_input']} "
+            prompt = f"{prefix} {entry['telugu_instruction']} {entry['telugu_input']} "
         else:
-            prompt = f"{prefix}: {entry['telugu_instruction']} "
+            prompt = f"{prefix} {entry['telugu_instruction']} "
 
-        response = f"{response_tag}: {entry['telugu_output']} {eos_token}"
+        response = f"{response_tag} {entry['telugu_output']} {eos_token}"
         full_text = prompt + response
 
         full_text = full_text.strip()
@@ -39,7 +39,7 @@ class InstructionDataset(Dataset):
         tokenized = self.tokenizer(
             full_text,
             truncation=True,
-            max_length=self.max_length,
+            max_length=1024,
             return_tensors="pt",
             padding="max_length",
         )
@@ -48,9 +48,13 @@ class InstructionDataset(Dataset):
         attention_mask = tokenized["attention_mask"].squeeze(0)
 
         labels = input_ids.clone()
+
         prompt_len = len(self.tokenizer(prompt)["input_ids"])
-        labels[:prompt_len] = -100
-        labels[input_ids == 1] = -100
+        response_tag_len = len(self.tokenizer(f"{response_tag} ")["input_ids"])
+
+        # Label masking (masking prompt and padding tokens)
+        labels[: prompt_len + response_tag_len] = -100
+        labels[input_ids == self.tokenizer.pad_token_id] = -100
 
         return {
             "input_ids": input_ids,
