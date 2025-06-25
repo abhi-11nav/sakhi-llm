@@ -9,7 +9,7 @@ model_parameters:
   ff_dim: 4096
   chunk_length: 1024
   num_layers: 10
-  vocab_size: 64000
+  vocab_size: 64002
 
 train_parameters:
   batch_size: 10
@@ -36,4 +36,4 @@ data_loader:
 
 inference_parameters:
   max_new_tokens: 300
-  model: "local-data/models/soki_model_epoch_1_step250000.pth"
+  model: "local-data/model_dir/soki_model_epoch_1.pth"

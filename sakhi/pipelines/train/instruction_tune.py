@@ -192,6 +192,9 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
                 labels = batch["labels"].to(rank, non_blocking=True)
 
+                valid_tokens = (labels != -100).sum().item()
+                logger.info(f"Valid tokens per batch: {valid_tokens}")
+
                 output_logits = sakhi_model(input_ids)
                 loss = criterion(
                     output_logits.view(-1, output_logits.size(-1)),

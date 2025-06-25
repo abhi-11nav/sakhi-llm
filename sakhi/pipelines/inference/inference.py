@@ -32,11 +32,11 @@ def generate_text(
     prompt: str,
     max_new_tokens: int,
     device: str,
-    temperature: float = 0.8,
-    top_k: int = 50,
+    temperature: float = 0.4,
+    top_k: int = 100,
     top_p: float = 0.90,
     repetition_penalty: float = 1.2,
-    no_repeat_ngram_size: int = 3,
+    no_repeat_ngram_size: int = 4,
 ) -> str:
     """Generate text given a prompt with controlled sampling."""
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
@@ -95,6 +95,10 @@ def main(config: SakhiConfig, prompt: str):
     set_seed(seed=config.train_parameters.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
+    special_tokens_dict = {
+        "additional_special_tokens": ["<|instruction|>", "<|response|>"]
+    }
+    tokenizer.add_special_tokens(special_tokens_dict)
 
     model = _load_model(
         model_path=config.inference_parameters.model,

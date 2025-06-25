@@ -56,6 +56,10 @@ class InstructionDataset(Dataset):
         labels[: prompt_len + response_tag_len] = -100
         labels[input_ids == self.tokenizer.pad_token_id] = -100
 
+        input_ids = input_ids[:-1]
+        labels = labels[1:]
+        attention_mask = attention_mask[:-1]
+
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
