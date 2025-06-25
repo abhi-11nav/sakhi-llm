@@ -1,6 +1,6 @@
 paths:
-  tokenizer_path: "/root/data/tokenizer_64k"
-  dataset_path: "/root/data/instruction_tuning_dataset.json"
+  tokenizer_path: "/home/ubuntu/data/tokenizer_64k"
+  dataset_path: "/home/ubuntu/instruction_tuning_dataset.json"
   save_dir: "local-data"
 
 model_parameters:
@@ -13,7 +13,7 @@ model_parameters:
 
 train_parameters:
   batch_size: 12
-  num_epochs: 3
+  num_epochs: 1
   init_learning_rate: 1e-4
   min_learning_rate: 1e-6
   seed: 42
@@ -25,7 +25,7 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
-  resume: "/root/data/model/soki_model_epoch_1_step250000.pth"
+  resume: "/home/ubuntu/data/model/soki_model_epoch_1_step250000.pth"
 
 logger:
   wandb: True
