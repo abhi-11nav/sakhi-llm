@@ -41,7 +41,7 @@ def setup(rank: int, world_size: int, config):
         torch.cuda.set_device(0)
 
 
-def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
+def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     model = SakhiModel(
         embed_dim=config.model_parameters.embed_dim,
         num_heads=config.model_parameters.num_heads,
@@ -50,6 +50,7 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
         num_layers=config.model_parameters.num_layers,
     ).to(rank)
 
+    assert len(tokenizer) == 64002
     if config.train_parameters.call_torch_compile_on_model:
         model = torch.compile(model)
 
@@ -60,6 +61,7 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
             )
             model.load_state_dict(state_dict)
 
+    model.resize_token_embeddings(new_vocab_size=len(tokenizer))
     sakhi_model = DDP(model, device_ids=[rank]) if world_size > 1 else model
 
     return sakhi_model

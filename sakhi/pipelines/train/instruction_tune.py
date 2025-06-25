@@ -97,8 +97,9 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
 
         # Create model and move to GPU
         logger.info("Initializing Sakhi model...")
-        sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
-        sakhi_model.resize_token_embeddings(new_vocab_size=len(tokenizer))
+        sakhi_model = get_sakhi_model(
+            rank=rank, world_size=world_size, config=config, tokenizer=tokenizer
+        )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 

@@ -33,13 +33,16 @@ class SakhiModel(nn.Module):
             print("New vocab size is not larger than existing. No resizing done.")
             return
 
+        # Get device of current embedding
+        device = self.decoder_embedding.weight.device
+
         # Resize embedding layer
-        new_embed = nn.Embedding(new_vocab_size, embed_dim)
+        new_embed = nn.Embedding(new_vocab_size, embed_dim).to(device)
         new_embed.weight.data[:old_vocab_size] = self.decoder_embedding.weight.data
 
         std = self.decoder_embedding.weight.data.std()
         new_embed.weight.data[old_vocab_size:] = (
-            torch.randn(new_vocab_size - old_vocab_size, embed_dim) * std
+            torch.randn(new_vocab_size - old_vocab_size, embed_dim, device=device) * std
         )
         self.decoder_embedding = new_embed
 
@@ -50,13 +53,16 @@ class SakhiModel(nn.Module):
                 "Old output dim is not equal to old vocab size. Something's wrong"
             )
 
-        new_out = nn.Linear(in_dim, new_vocab_size)
+        # Get device of current output projection
+        out_device = self.output_projection.weight.device
+
+        new_out = nn.Linear(in_dim, new_vocab_size).to(out_device)
         new_out.weight.data[:old_out_dim] = self.output_projection.weight.data
         new_out.bias.data[:old_out_dim] = self.output_projection.bias.data
 
         std = self.output_projection.weight.data.std()
         new_out.weight.data[old_out_dim:] = (
-            torch.randn(new_vocab_size - old_out_dim, in_dim) * std
+            torch.randn(new_vocab_size - old_out_dim, in_dim, device=out_device) * std
         )
         new_out.bias.data[old_out_dim:] = 0.0
         self.output_projection = new_out
