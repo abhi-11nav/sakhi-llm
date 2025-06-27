@@ -24,13 +24,9 @@ class InstructionDataset(Dataset):
         response_tag = "<|response|>"
         eos_token = self.tokenizer.eos_token
 
-        # Combine instruction + input
-        if entry["telugu_input"] == entry["telugu_input"]:
-            prompt = f"{prefix} {entry['telugu_instruction']} {entry['telugu_input']} "
-        else:
-            prompt = f"{prefix} {entry['telugu_instruction']} "
+        prompt = f"{prefix} {entry['question']} "
 
-        response = f"{response_tag} {entry['telugu_output']} {eos_token}"
+        response = f"{response_tag} {entry['response']} {eos_token}"
         full_text = prompt + response
 
         full_text = full_text.strip()
