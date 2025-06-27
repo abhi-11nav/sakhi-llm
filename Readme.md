@@ -15,7 +15,7 @@ To run inference, use the following code:
 ```python
 import torch
 
-from sakhi import load_model, load_tokenizer
+from sakhi import load_model, load_tokenizer, prepare_instruct_prompt
 from sakhi.pipelines.inference.inference import generate_text
 
 if __name__ == "__main__":
@@ -26,6 +26,9 @@ if __name__ == "__main__":
     model = load_model(path=model_path, device=device)
 
     input_text = "హలో"
+    # If you plan to use instruct-tuned-model; format the prompt
+    input_text = prepare_instruct_prompt(prompt = input_text)
+    
     text = generate_text(
         prompt=input_text,
         model=model,
