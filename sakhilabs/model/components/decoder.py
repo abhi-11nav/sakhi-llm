@@ -1,8 +1,8 @@
 import torch.nn as nn
 
-from sakhi.model.components.mha_rope import MultiheadSelfAttentionRoPE
-from sakhi.model.components.rms_norm import RMSNorm
-from sakhi.model.components.swiglu import SwiGLU
+from sakhilabs.model.components.mha_rope import MultiheadSelfAttentionRoPE
+from sakhilabs.model.components.rms_norm import RMSNorm
+from sakhilabs.model.components.swiglu import SwiGLU
 
 
 class TransformerDecoderBlock(nn.Module):

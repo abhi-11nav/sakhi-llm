@@ -7,25 +7,59 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import wandb
-from torch.amp import GradScaler, autocast
 from torch.distributed import destroy_process_group
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
-from sakhi.configs.utils.config import SakhiConfig
-from sakhi.data.custom_dataset.pretraining.custom_dataset import CustomDataset
-from sakhi.pipelines.utils.general_utils import (do_sanity_checks,
-                                                 get_sakhi_model, setup,
-                                                 setup_logging)
-from sakhi.pipelines.utils.training_utils import hash_tensor, set_seed
+from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.data.custom_dataset.instruction_tune.custom_dataset import \
+    get_dataloaders
+from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks,
+                                                     get_sakhi_model, setup,
+                                                     setup_logging)
+from sakhilabs.pipelines.utils.training_utils import set_seed
 
 
-def train(
-    rank: int,
-    world_size: int,
-    config: SakhiConfig,
-):
+def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
+    model.eval()
+    total_loss = 0.0
+    num_batches = 0
+
+    iterator = tqdm(loader, desc="Evaluating", disable=(rank != 0))
+
+    with torch.no_grad():
+        for i, batch in enumerate(iterator):
+            input_ids = batch["input_ids"].to(rank, non_blocking=True)
+            labels = batch["labels"].to(rank, non_blocking=True)
+
+            outputs = model(input_ids)
+            loss = criterion(
+                outputs.view(-1, outputs.size(-1)),
+                labels.view(-1),
+            )
+
+            loss_value = loss.item()
+            total_loss += loss_value
+            num_batches += 1
+
+            if rank == 0:
+                iterator.set_postfix(loss=loss_value)
+                if i % 10 == 0:  # Optional: log every N batches
+                    tqdm.write(f"[Rank 0] Eval Step {i}, Loss: {loss_value:.4f}")
+
+    model.train()
+    avg_loss = total_loss / max(num_batches, 1)
+    perplexity = torch.exp(torch.tensor(avg_loss))
+    if rank == 0:
+        tqdm.write(
+            f"[Rank 0] Eval completed. Avg Loss: {avg_loss:.4f}, Perplexity: {perplexity:.2f}"
+        )
+
+    return avg_loss
+
+
+def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     try:
         log_dir = config.paths.log_dir
         logger = setup_logging(rank, log_dir=log_dir)
@@ -58,22 +92,20 @@ def train(
 
         # Create dataset
         logger.info("Creating dataset")
-        dataset = CustomDataset(
-            config.paths.dataset_path,
-            chunk_length=config.model_parameters.chunk_length,
-        )
 
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
 
         # Create model and move to GPU
         logger.info("Initializing Sakhi model...")
-        sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
+        sakhi_model = get_sakhi_model(
+            rank=rank, world_size=world_size, config=config, tokenizer=tokenizer
+        )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.init(
-                project="Sakhi-Model-Training",
+                project="Sakhi-Model Instruction Tuning",
                 config={
                     "epochs": config.train_parameters.num_epochs,
                     "batch_size": config.train_parameters.batch_size,
@@ -102,15 +134,20 @@ def train(
         logger.info(
             f"Initializing DataLoader with batch_size={config.train_parameters.batch_size}"
         )
-        data_loader = DataLoader(
-            dataset,
+
+        train_loader, val_loader, test_loader = get_dataloaders(
+            data_path=config.paths.dataset_path,
             batch_size=config.train_parameters.batch_size,
+            tokenizer=tokenizer,
             num_workers=config.data_loader.num_workers,
             pin_memory=config.data_loader.pin_memory,
+            max_length=config.model_parameters.chunk_length,
+            rank=rank,
+            world_size=world_size,
         )
 
         # Loss, Optimizer and LRScheduler
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=-100)
         optimizer = torch.optim.AdamW(
             sakhi_model.parameters(),
             lr=float(config.train_parameters.init_learning_rate),
@@ -119,14 +156,12 @@ def train(
         # After optimizer creation:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=len(data_loader),
+            T_max=len(train_loader),
             eta_min=float(config.train_parameters.min_learning_rate),
         )
 
         logger.info("Starting training loop...")
         training_start_time = time.time()
-
-        scaler = GradScaler()
 
         # Training loop
         for epoch in range(config.train_parameters.num_epochs):
@@ -142,12 +177,12 @@ def train(
 
             if rank == 0:
                 batch_iterator = tqdm(
-                    enumerate(data_loader),
-                    total=len(data_loader),
+                    enumerate(train_loader),
+                    total=len(train_loader),
                     desc=f"Epoch {epoch + 1}",
                 )
             else:
-                batch_iterator = enumerate(data_loader)
+                batch_iterator = enumerate(train_loader)
 
             optimizer.zero_grad()
 
@@ -157,29 +192,29 @@ def train(
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
                 labels = batch["labels"].to(rank, non_blocking=True)
 
-                with autocast(device_type="cuda"):
-                    output_logits = sakhi_model(input_ids)
-                    loss = criterion(
-                        output_logits.view(-1, config.model_parameters.vocab_size),
-                        labels.reshape(-1),
-                    )
+                valid_tokens = (labels != -100).sum().item()
+                logger.info(f"Valid tokens per batch: {valid_tokens}")
 
-                    loss = loss / grad_accum_steps
+                output_logits = sakhi_model(input_ids)
+                loss = criterion(
+                    output_logits.view(-1, output_logits.size(-1)),
+                    labels.view(-1),
+                )
+
+                loss = loss / grad_accum_steps
+
                 # Backward pass
-                scaler.scale(loss).backward()
+                loss.backward()
 
                 # Gradient accumulation
-                if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(data_loader):
-                    scaler.unscale_(optimizer)
+                if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(train_loader):
                     torch.nn.utils.clip_grad_norm_(
                         sakhi_model.parameters(),
                         max_norm=config.train_parameters.gradient_clipping_max_norm,
                     )
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad()
-
+                    optimizer.step()
                     scheduler.step()
+                    optimizer.zero_grad()
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()
@@ -187,20 +222,15 @@ def train(
                 num_batches += 1
                 batch_losses.append(loss_value)
 
-                if i < 10:
-                    local_rank = rank
-                    token_hash = hash_tensor(input_ids[0])
-                    logger.info(
-                        f"Dataset Duplication Info:: Rank {local_rank}, Step {i}, InputHash: {token_hash}"
-                    )
-
                 if i % config.train_parameters.log_every_n_steps == 0:
-                    if config.logging.wandb:
+                    perplexity = torch.exp(torch.tensor(loss_value)).item()
+                    if config.logger.wandb:
                         wandb.log(
                             {
                                 "epoch": epoch + 1,
-                                "step": i + epoch * len(data_loader),
+                                "step": i + epoch * len(train_loader),
                                 "batch_loss": loss_value,
+                                "batch_perplexity": perplexity,
                                 "batch_time": batch_time,
                                 "learning_rate": scheduler.get_last_lr()[0],
                                 "rank": rank,
@@ -210,7 +240,7 @@ def train(
                     if rank == 0:
                         logger.info(
                             f"Epoch {epoch + 1}/{config.train_parameters.num_epochs}, Batch {i}, "
-                            f"Loss: {loss_value:.4f}, Batch Time: {batch_time:.2f}s"
+                            f"Batch {i}, Loss: {loss_value:.4f}, Perplexity: {perplexity:.2f}, Time: {batch_time:.2f}s"
                         )
 
                         # store to training_data dictionary
@@ -237,37 +267,68 @@ def train(
                     and i % save_every_n_steps == 0
                 ):
                     model_save_dir = config.paths.model_dir
-                    model_filename = (
-                        f"{model_save_dir}/soki_model_epoch_{epoch + 1}_step{i}.pth"
-                    )
-                    state_dict = (
-                        sakhi_model.module.state_dict()
-                        if world_size > 1
-                        else sakhi_model.state_dict()
-                    )
-                    torch.save(state_dict, model_filename)
-                    logger.info(f"Model saved to {model_filename}")
+                    # model_filename = (
+                    #     f"{model_save_dir}/soki_model_epoch_{epoch + 1}_step{i}.pth"
+                    # )
+                    # state_dict = (
+                    #     sakhi_model.module.state_dict()
+                    #     if world_size > 1
+                    #     else sakhi_model.state_dict()
+                    # )
+                    # torch.save(state_dict, model_filename)
+                    # logger.info(f"Model saved to {model_filename}")
 
-                    training_data["model_saves"].append(
-                        {
-                            "epoch": epoch + 1,
-                            "step": i,
-                            "filename": model_filename,
-                            "timestamp": datetime.now().isoformat(),
-                        }
-                    )
+                    # training_data["model_saves"].append(
+                    #     {
+                    #         "epoch": epoch + 1,
+                    #         "step": i,
+                    #         "filename": model_filename,
+                    #         "timestamp": datetime.now().isoformat(),
+                    #     }
+                    # )
 
-                    json_filename = os.path.join(
-                        log_dir, f"training_data_rank_{rank}.json"
-                    )
-                    with open(json_filename, "w") as f:
-                        json.dump(training_data, f, indent=2)
+                    # json_filename = os.path.join(
+                    #     log_dir, f"training_data_rank_{rank}.json"
+                    # )
+                    # with open(json_filename, "w") as f:
+                    #     json.dump(training_data, f, indent=2)
 
             epoch_time = time.time() - epoch_start_time
 
+            # Evaluate on validation and test sets
+            val_loss = evaluate(val_loader, sakhi_model, criterion, rank)
+            test_loss = evaluate(test_loader, sakhi_model, criterion, rank)
+
+            if config.logger.wandb:
+                wandb.log(
+                    {
+                        "val_loss": val_loss,
+                        "val_perplexity": float(torch.exp(torch.tensor(val_loss))),
+                        "test_loss": test_loss,
+                        "test_perplexity": float(torch.exp(torch.tensor(test_loss))),
+                        "rank": rank,
+                    }
+                )
+
             # Calculate and log epoch summary
             if rank == 0:
+                logger.info(f"Validation Loss: {val_loss:.4f}")
+                logger.info(f"Test Loss: {test_loss:.4f}")
+
+                model_save_dir = config.paths.model_dir
+                epoch_model_filename = (
+                    f"{model_save_dir}/soki_model_epoch_{epoch + 1}.pth"
+                )
+                state_dict = (
+                    sakhi_model.module.state_dict()
+                    if world_size > 1
+                    else sakhi_model.state_dict()
+                )
+                torch.save(state_dict, epoch_model_filename)
+                logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
+
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
+                # train_perplexity = torch.exp(torch.tensor(avg_loss)).item()
                 min_loss = min(batch_losses) if batch_losses else 0
                 max_loss = max(batch_losses) if batch_losses else 0
 
@@ -289,14 +350,15 @@ def train(
                     "epoch_time": epoch_time,
                     "batches_per_sec": num_batches / epoch_time,
                     "timestamp": datetime.now().isoformat(),
+                    "val_loss": val_loss,
+                    "test_loss": test_loss,
                 }
                 training_data["epoch_summaries"].append(epoch_summary)
 
-            # Empty cache after each epoch
             torch.cuda.empty_cache()
         total_training_time = time.time() - training_start_time
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.finish()
 
         # Final logging
@@ -343,28 +405,41 @@ def train(
             destroy_process_group()
 
 
-def pretraining_run(config: SakhiConfig):
+def instruction_tuning_run(config: SakhiConfig):
     # do sanity checks and set seed
     do_sanity_checks(config=config)
     set_seed(seed=config.train_parameters.seed)
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
+    special_tokens_dict = {
+        "additional_special_tokens": ["<|instruction|>", "<|response|>"]
+    }
+    tokenizer.add_special_tokens(special_tokens_dict)
+
+    assert len(tokenizer) == 64002
+
     world_size = (
         torch.cuda.device_count()
         if config.train_parameters.num_gpus == -1
         else config.train_parameters.num_gpus
     )
 
-    config.model_parameters.vocab_size = len(tokenizer)
-    del tokenizer
+    # config.model_parameters.vocab_size = len(tokenizer)
 
     if world_size > 1:
         # DDP
         mp.spawn(
             train,
-            args=(world_size, config),
+            args=(world_size, config, tokenizer),
             nprocs=world_size,
             join=True,
         )
     else:
-        train(rank=0, world_size=world_size, config=config)
+        train(rank=0, world_size=world_size, config=config, tokenizer=tokenizer)
+
+
+if __name__ == "__main__":
+    config = "sakhi/configs/sakhi_telugu__681M.yaml"
+
+    config = SakhiConfig._load_config(config_path=config)
+    instruction_tuning_run(config=config)

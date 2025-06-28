@@ -1,6 +1,6 @@
 -include .local.mk
 
-ROOT_DIR = sakhi
+ROOT_DIR = sakhilabs
 VENV = venv_sakhi
 PIP = pip
 PYTHON ?= python

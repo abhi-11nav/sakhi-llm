@@ -1,7 +1,5 @@
-import yaml
-
-from sakhi.configs.utils.config import SakhiConfig
-from sakhi.pipelines.inference.inference import main
+from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.pipelines.inference.inference import main
 
 
 def sakhi_inference_args(subparsers):

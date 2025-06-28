@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from sakhi.model.components.rope import apply_rotary_pos_emb
+from sakhilabs.model.components.rope import apply_rotary_pos_emb
 
 
 class MultiheadSelfAttentionRoPE(nn.Module):

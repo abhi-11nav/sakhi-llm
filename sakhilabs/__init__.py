@@ -6,7 +6,7 @@ import torch
 from huggingface_hub import snapshot_download
 from transformers import PreTrainedTokenizerFast
 
-from sakhi.model.model import SakhiModel
+from sakhilabs.model.model import SakhiModel
 
 
 def load_tokenizer(path: str):

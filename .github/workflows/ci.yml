@@ -1,0 +1,29 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: env and dependency installation
+        run: |
+          pip install uv
+          uv venv
+          uv pip install -r requirements.txt
+
+      - name: Run Ruff linter
+        run: .venv/bin/ruff check sakhilabs

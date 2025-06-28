@@ -6,8 +6,8 @@ import torch
 from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from sakhi.configs.utils.config import SakhiConfig
-from sakhi.model.model import SakhiModel
+from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.model.model import SakhiModel
 
 
 def do_sanity_checks(config):

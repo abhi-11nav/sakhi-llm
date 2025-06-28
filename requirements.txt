@@ -60,6 +60,10 @@ idna==3.10
     # via
     #   requests
     #   yarl
+iniconfig==2.1.0
+    # via pytest
+isort==6.0.1
+    # via -r requirements.in
 jinja2==3.1.6
     # via torch
 markupsafe==3.0.2
@@ -85,12 +89,15 @@ packaging==25.0
     # via
     #   datasets
     #   huggingface-hub
+    #   pytest
     #   transformers
     #   wandb
 pandas==2.3.0
     # via datasets
 platformdirs==4.3.8
     # via wandb
+pluggy==1.6.0
+    # via pytest
 propcache==0.3.2
     # via
     #   aiohttp
@@ -105,6 +112,10 @@ pydantic==2.11.7
     # via wandb
 pydantic-core==2.33.2
     # via pydantic
+pygments==2.19.2
+    # via pytest
+pytest==8.4.1
+    # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
@@ -123,6 +134,8 @@ requests==2.32.3
     #   huggingface-hub
     #   transformers
     #   wandb
+ruff==0.12.1
+    # via -r requirements.in
 safetensors==0.5.3
     # via transformers
 scipy==1.15.3
