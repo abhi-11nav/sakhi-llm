@@ -16,8 +16,8 @@ from sakhilabs.configs.utils.config import SakhiConfig
 from sakhilabs.data.custom_dataset.instruction_tune.custom_dataset import \
     get_dataloaders
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks,
-                                                 get_sakhi_model, setup,
-                                                 setup_logging)
+                                                     get_sakhi_model, setup,
+                                                     setup_logging)
 from sakhilabs.pipelines.utils.training_utils import set_seed
 
 
@@ -328,7 +328,7 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 logger.info(f"Epoch {epoch + 1} model saved to {epoch_model_filename}")
 
                 avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
-                train_perplexity = torch.exp(torch.tensor(avg_loss)).item()
+                # train_perplexity = torch.exp(torch.tensor(avg_loss)).item()
                 min_loss = min(batch_losses) if batch_losses else 0
                 max_loss = max(batch_losses) if batch_losses else 0
 

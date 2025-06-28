@@ -1,7 +1,6 @@
 import json
 from collections import Counter
 
-import numpy as np
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 

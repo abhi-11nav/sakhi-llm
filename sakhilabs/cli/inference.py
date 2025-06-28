@@ -1,5 +1,3 @@
-import yaml
-
 from sakhilabs.configs.utils.config import SakhiConfig
 from sakhilabs.pipelines.inference.inference import main
 

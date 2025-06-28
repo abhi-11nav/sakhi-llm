@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
+from tokenizers import Tokenizer, decoders, models, pre_tokenizers
 from tokenizers.trainers import BpeTrainer
 from transformers import PreTrainedTokenizerFast
 

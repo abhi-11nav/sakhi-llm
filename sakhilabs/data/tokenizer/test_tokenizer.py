@@ -1,7 +1,6 @@
 import argparse
 import json
 
-from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 
