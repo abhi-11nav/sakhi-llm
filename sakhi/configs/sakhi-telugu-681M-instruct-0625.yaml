@@ -1,0 +1,39 @@
+paths:
+  tokenizer_path: "/root/data/tokenizer_64k"
+  dataset_path: "/root/data/data/final_instruction_tuned.json"
+  save_dir: "local-data"
+
+model_parameters:
+  embed_dim: 2048
+  num_heads: 8
+  ff_dim: 4096
+  chunk_length: 1024
+  num_layers: 10
+  vocab_size: 64000
+
+train_parameters:
+  batch_size: 48
+  num_epochs: 3
+  init_learning_rate: 1e-4
+  min_learning_rate: 1e-6
+  seed: 42
+  master_addr: "localhost"
+  master_port: "12355"
+  num_gpus: -1
+  save_every_n_steps: 25000
+  log_every_n_steps: 100
+  gradient_clipping_max_norm: 3.0
+  call_torch_compile_on_model: False
+  gradient_accumulation_steps: 2
+  resume: "/root/data/model/soki_model_epoch_1_step250000.pth"
+
+logger:
+  wandb: True
+
+data_loader:
+  num_workers: 0
+  pin_memory: true
+
+inference_parameters:
+  max_new_tokens: 300
+  model: "local-data/model_dir/soki_model_epoch_1.pth"

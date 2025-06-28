@@ -1,7 +1,7 @@
 paths:
-  tokenizer_path: "/"
-  dataset_path: "/"
-  save_dir: "/"
+  tokenizer_path: ""
+  dataset_path: ""
+  save_dir: ""
 
 model_parameters:
   embed_dim: 2048
@@ -12,7 +12,7 @@ model_parameters:
   vocab_size: 64000
 
 train_parameters:
-  batch_size: 12
+  batch_size: 10
   num_epochs: 1
   init_learning_rate: 1e-5
   min_learning_rate: 1e-8
@@ -25,14 +25,15 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
+  resume: ""
 
 logger:
   wandb: True
 
 data_loader:
-  num_workers: 8
+  num_workers: 0
   pin_memory: true
 
 inference_parameters:
   max_new_tokens: 300
-  model: "local-data/models/soki_model_epoch_1_step250000.pth"
+  model: ""

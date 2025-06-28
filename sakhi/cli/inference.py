@@ -22,9 +22,13 @@ def sakhi_inference_args(subparsers):
     inference_parser.add_argument(
         "--prompt",
         type=str,
-        default="చెప్పు",
-        help="Prompt for model inference",
+        default="<|instruction|> సాఫ్ట్‌వేర్ ఇన్స్టాల్ చేయడానికి సులభమైన దశలను చెప్పండి. <|response|> ",
+        help="Telugu prompt for the model to reply",
     )
+
+    # <|instruction|> ఈ ప్రయోగంలో మీరు ఏ పద్ధతిని అనుసరించారో వివరించండి. విద్యుత్ ప్రవాహం కొలవడానికి మేము అమిత్ గేజ్ ఉపయోగించాము. <|response|>
+    # <|instruction|> ఈ పద్యం యొక్క భావాన్ని వివరించండి. తల్లి ప్రేమను వర్ణించే ఈ పద్యంలో, ఆమె త్యాగాలను కవి వివరించారు. <|response|>
+    # <|instruction|> మీరు ఈ సమస్యను ఎలా పరిష్కరించారో వివరించండి. సమీకరణాలను సరియైన పద్ధతిలో పరిష్కరించడానికి మేము తొలి సూత్రాన్ని ఉపయోగించాము. <|response|>
 
     inference_parser.set_defaults(func=sakhi_inference)
 

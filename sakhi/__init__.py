@@ -13,6 +13,14 @@ def load_tokenizer(path: str):
     return PreTrainedTokenizerFast.from_pretrained(path, subfolder="tokenizer")
 
 
+def prepare_instruct_prompt(prompt: str):
+    prefix = "<|instruction|>"
+    response_tag = "<|response|>"
+
+    instruct_prompt = f"{prefix} {prompt} {response_tag} "
+    return instruct_prompt
+
+
 def load_model(path: str, device: Optional[str] = None):
     if not device:
         device = "cuda" if torch.cuda.is_available() else "cpu"
