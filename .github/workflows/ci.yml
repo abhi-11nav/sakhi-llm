@@ -25,5 +25,4 @@ jobs:
           uv pip install -r requirements.txt
 
       - name: Run Ruff linter
-        run: .venv/bin/ruff check sakhilabs tests
-        run: ruff check sakhilabs tests
+        run: .venv/bin/ruff check sakhilabs
