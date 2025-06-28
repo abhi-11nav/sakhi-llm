@@ -1,8 +1,8 @@
 import argparse
 import sys
 
-from sakhi.cli.inference import sakhi_inference_args
-from sakhi.cli.train import sakhi_training_args
+from sakhilabs.cli.inference import sakhi_inference_args
+from sakhilabs.cli.train import sakhi_training_args
 
 
 def main():

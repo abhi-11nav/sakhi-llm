@@ -1,6 +1,6 @@
 import yaml
 
-from sakhi.model.model import SakhiModel
+from sakhilabs.model.model import SakhiModel
 
 
 def get_model_param():

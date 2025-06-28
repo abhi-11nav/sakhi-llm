@@ -1,19 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "sakhi"
-version = "0.0.1"
-description = "sakhi LLM code"
-authors = [
-    { name = "Abhinav Reddy Mandli", email = "raabhinav65@gmail.com" }
-]
+name = "sakhilabs"
+description = "Sakhi - Tools for building and using AI models for Indic languages"
+dynamic = ["version"]
+requires-python = ">=3.9"
+license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.10"
+authors = [{ name = "Abhinav Reddy Mandli", email = "raabhinav65@gmail.com" }]
+dependencies = [
+    "torch==2.7.0",
+    "datasets==3.6.0",
+    "transformers==4.52.3",
+    "datasketch==1.6.5",
+    "wandb==0.20.1"
+]
+keywords = ["sakhi", "indicAI", "AI Library Indic Languages"]
 
-
-# CLI entrypoint
 [project.scripts]
-sakhi = "sakhi.cli.main:main"
-
+sakhi = "sakhilabs.cli.main:main"
 
 [tool.setuptools.packages.find]
-include = ["sakhi*"]
+include = ["sakhilabs*"]
 exclude = ["venv_transformers*"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "no-local-version"

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from sakhi.model.components.decoder import TransformerDecoderBlock
-from sakhi.model.components.nn_utils import generate_square_subsequent_mask
+from sakhilabs.model.components.decoder import TransformerDecoderBlock
+from sakhilabs.model.components.nn_utils import generate_square_subsequent_mask
 
 
 class SakhiModel(nn.Module):
