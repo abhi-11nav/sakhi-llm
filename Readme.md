@@ -4,7 +4,9 @@ A transformer-based language model pretrained from scratch on a cleaned and dedu
 
 ---
 
-- **Model Availability:** [Hugging Face – abhi11nav/sakhi-telugu-681M-pretrained-0625](https://huggingface.co/abhi11nav/sakhi-telugu-681M-pretrained-0625)
+- **Model Availability:**  
+  [Hugging Face – abhi11nav/sakhi-telugu-681M-pretrained-0625](https://huggingface.co/abhi11nav/sakhi-telugu-681M-pretrained-0625)  
+  [Hugging Face – abhi11nav/sakhi-telugu-681M-instruct-0625](https://huggingface.co/abhi11nav/sakhi-telugu-681M-instruct-0625)
 
 ## Inference
 
@@ -15,8 +17,8 @@ To run inference, use the following code:
 ```python
 import torch
 
-from sakhi import load_model, load_tokenizer, prepare_instruct_prompt
-from sakhi.pipelines.inference.inference import generate_text
+from sakhilabs import load_model, load_tokenizer, prepare_instruct_prompt
+from sakhilabs.pipelines.inference.inference import generate_text
 
 if __name__ == "__main__":
     model_path = "abhi11nav/sakhi-telugu-681M-pretrained-0625"
@@ -28,7 +30,7 @@ if __name__ == "__main__":
     input_text = "హలో"
     # If you plan to use instruct-tuned-model; format the prompt
     input_text = prepare_instruct_prompt(prompt = input_text)
-    
+
     text = generate_text(
         prompt=input_text,
         model=model,
