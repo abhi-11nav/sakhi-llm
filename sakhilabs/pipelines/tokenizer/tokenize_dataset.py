@@ -1,14 +1,21 @@
 import json
+import logging
 from collections import Counter
 
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
+logger = logging.getLogger(__name__)
+
 
 def chunk_large_txt_stream(
-    txt_path, tokenizer_path, output_path, chunk_length, read_block_size=16384
+    txt_path: str,
+    tokenizer_path: str,
+    output_path: str,
+    chunk_length: int,
+    read_block_size: int = 16384,
 ):
-    tokenizer = PreTrainedTokenizerFast(tokenizer_file=tokenizer_path)
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(tokenizer_path)
     tokenizer.add_special_tokens(
         {
             "pad_token": "<|pad|>",
@@ -29,7 +36,7 @@ def chunk_large_txt_stream(
         while True:
             chunk = infile.read(read_block_size)
             if not chunk:
-                break  # EOF
+                break
 
             token_buffer.extend(tokenizer.encode(chunk))
 
@@ -45,7 +52,7 @@ def chunk_large_txt_stream(
                 written += 1
                 pbar.update(1)
     pbar.close()
-    print(f"\n✅ Completed. Total chunks written: {written}")
+    logger.info(f"\nCompleted. Total chunks written: {written}")
 
 
 def analyze_tokenized_dataset(jsonl_path, top_k=20):
@@ -71,15 +78,15 @@ def analyze_tokenized_dataset(jsonl_path, top_k=20):
     min_len = min(lengths) if lengths else 0
     max_len = max(lengths) if lengths else 0
 
-    print(f"Total samples:         {total_samples:,}")
-    print(f"Total tokens:          {total_tokens:,}")
-    print(f"Average tokens/sample: {average_tokens:.2f}")
-    print(f"Unique tokens:         {unique_tokens:,}")
-    print(f"Min tokens/sample:     {min_len}")
-    print(f"Max tokens/sample:     {max_len}")
-    print(f"\n🔝 Top {top_k} most frequent tokens:")
+    logger.info(f"Total samples:         {total_samples:,}")
+    logger.info(f"Total tokens:          {total_tokens:,}")
+    logger.info(f"Average tokens/sample: {average_tokens:.2f}")
+    logger.info(f"Unique tokens:         {unique_tokens:,}")
+    logger.info(f"Min tokens/sample:     {min_len}")
+    logger.info(f"Max tokens/sample:     {max_len}")
+    logger.info(f"\n Top {top_k} most frequent tokens:")
     for token, freq in top_tokens:
-        print(f"Token ID {token}: {freq:,} times")
+        logger.info(f"Token ID {token}: {freq:,} times")
 
     return {
         "total_samples": total_samples,
@@ -99,7 +106,3 @@ if __name__ == "__main__":
         chunk_length=1024,
         read_block_size=16384,
     )
-
-    # output = analyze_tokenized_dataset(
-    #     jsonl_path="local-data/data/tokenized_chunks.jsonl"
-    # )
