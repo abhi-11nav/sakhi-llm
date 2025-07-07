@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.model.model import SakhiModel
 from sakhilabs.pipelines.utils.training_utils import set_seed
 

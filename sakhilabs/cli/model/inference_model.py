@@ -1,4 +1,4 @@
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.pipelines.inference.inference import main
 
 

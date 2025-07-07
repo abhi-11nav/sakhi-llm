@@ -1,6 +1,3 @@
-# NOTE: The raw text has already been tokenized to simplify the dataloader implementation.
-
-
 import json
 from typing import Optional
 

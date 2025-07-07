@@ -6,7 +6,7 @@ import torch
 from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.model.model import SakhiModel
 
 

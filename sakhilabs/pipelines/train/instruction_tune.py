@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.data.custom_dataset.instruction_tune.custom_dataset import \
     get_dataloaders
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks,
