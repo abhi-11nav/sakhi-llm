@@ -14,8 +14,6 @@ from torch.distributed.fsdp import StateDictType, state_dict_type
 from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
                                                                 MixedPrecision)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
-from torch.distributed.fsdp.wrap import ModuleWrapPolicy, always_wrap_policy
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
