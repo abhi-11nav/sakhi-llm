@@ -14,8 +14,7 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.data.custom_dataset.pretraining.custom_dataset import \
-    CustomDataset
+from sakhilabs.data.loaders.pretrain import CustomDataset
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks,
                                                      get_sakhi_model, setup,
                                                      setup_logging)
