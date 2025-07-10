@@ -2,8 +2,8 @@ from sakhilabs.pipelines.tokenizer.train_tokenzier import train_tokenizer
 
 
 def sakhi_tokenizer_train_args(subparsers):
-    tokenizer_train_parser = subparsers.ArgumentParser(
-        description="Train a BPE tokenizer on JSONL corpus"
+    tokenizer_train_parser = subparsers.add_parser(
+        "train-tokenizer", description="Train a BPE tokenizer on JSONL corpus"
     )
     tokenizer_train_parser.add_argument(
         "--corpus", type=str, required=True, help="Path to input .jsonl file"

@@ -13,8 +13,7 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.data.custom_dataset.instruction_tune.custom_dataset import \
-    get_dataloaders
+from sakhilabs.data.loaders.instruction_tune import get_dataloaders
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks,
                                                      get_sakhi_model, setup,
                                                      setup_logging)
@@ -436,10 +435,3 @@ def instruction_tuning_run(config: SakhiConfig):
         )
     else:
         train(rank=0, world_size=world_size, config=config, tokenizer=tokenizer)
-
-
-if __name__ == "__main__":
-    config = "sakhi/configs/sakhi_telugu__681M.yaml"
-
-    config = SakhiConfig._load_config(config_path=config)
-    instruction_tuning_run(config=config)

@@ -2,8 +2,8 @@ from sakhilabs.pipelines.tokenizer.test_tokenizer import analyze_tokenizer
 
 
 def sakhi_tokenizer_test_args(subparsers):
-    test_tokenizer = subparsers.ArgumentParser(
-        description="Analyze tokenizer performance on a JSONL file"
+    test_tokenizer = subparsers.add_parser(
+        "test-tokenizer", description="Analyze tokenizer performance on a JSONL file"
     )
     test_tokenizer.add_argument(
         "--tokenizer", required=True, help="Path to tokenizer directory"

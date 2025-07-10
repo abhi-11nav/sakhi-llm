@@ -10,7 +10,7 @@ import wandb
 from torch.amp import autocast
 from torch.distributed import destroy_process_group
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import StateDictType, state_dict_type
+from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
                                                                 MixedPrecision)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -67,7 +67,7 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
         print(f"[Rank {rank}] Loading model checkpoint from: {resume_path}")
 
         if world_size > 1:
-            with state_dict_type(model, StateDictType.FULL_STATE_DICT):
+            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT):
                 state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
                 model.load_state_dict(state_dict)
         else:
@@ -299,7 +299,7 @@ def train(
                     )
 
                     if world_size > 1:
-                        with state_dict_type(
+                        with FSDP.state_dict_type(
                             sakhi_model, StateDictType.FULL_STATE_DICT
                         ):
                             state_dict = sakhi_model.state_dict()
@@ -389,7 +389,7 @@ def train(
             model_save_dir = config.paths.model_dir
             final_model_filename = f"{model_save_dir}/soki_model_final.pth"
             if world_size > 1:
-                with state_dict_type(sakhi_model, StateDictType.FULL_STATE_DICT):
+                with FSDP.state_dict_type(sakhi_model, StateDictType.FULL_STATE_DICT):
                     state_dict = sakhi_model.state_dict()
 
             else:
