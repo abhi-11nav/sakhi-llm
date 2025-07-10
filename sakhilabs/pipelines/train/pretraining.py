@@ -422,6 +422,8 @@ def pretraining_run(config: SakhiConfig):
     config.model_parameters.vocab_size = len(tokenizer)
     del tokenizer
 
+    os.environ["WANDB_MODE"] = config.logger.mode
+
     if world_size > 1:
         # DDP
         mp.spawn(

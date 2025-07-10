@@ -20,7 +20,7 @@ train_parameters:
   master_addr: "localhost"
   master_port: "29500"
   num_gpus: -1
-  save_every_n_steps: 25000
+  save_every_n_steps: 50000
   log_every_n_steps: 100
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
@@ -29,6 +29,7 @@ train_parameters:
 
 logger:
   wandb: True
+  mode: offline
 
 data_loader:
   num_workers: 0
