@@ -1,7 +1,7 @@
 paths:
-  tokenizer_path: ""
-  dataset_path: ""
-  save_dir: ""
+  tokenizer_path: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/rakhi-data/tokenizers/sakhi_tokenizer_128K"
+  dataset_path: "/home/abhi11/scratch/abhinav/tokenized_chunks.jsonl"
+  save_dir: "local-data"
 
 model_parameters:
   embed_dim: 2048
@@ -12,7 +12,7 @@ model_parameters:
   vocab_size: 128000
 
 train_parameters:
-  batch_size: 10
+  batch_size: 4
   num_epochs: 1
   init_learning_rate: 1e-5
   min_learning_rate: 1e-8
@@ -28,7 +28,7 @@ train_parameters:
   resume: ""
 
 logger:
-  wandb: True
+  wandb: False
   mode: offline
 
 data_loader:

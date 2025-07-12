@@ -129,7 +129,7 @@ def train(
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.init(
                 project="Sakhi-Model-Training",
                 config={
@@ -252,7 +252,7 @@ def train(
                     )
 
                 if i % config.train_parameters.log_every_n_steps == 0:
-                    if config.logging.wandb:
+                    if config.logger.wandb:
                         wandb.log(
                             {
                                 "epoch": epoch + 1,
@@ -358,7 +358,7 @@ def train(
             torch.cuda.empty_cache()
         total_training_time = time.time() - training_start_time
 
-        if config.logging.wandb:
+        if config.logger.wandb:
             wandb.finish()
 
         # Final logging
@@ -434,3 +434,9 @@ def pretraining_run(config: SakhiConfig):
         )
     else:
         train(rank=0, world_size=world_size, config=config)
+
+
+if __name__ == "__main__":
+    config_path = "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-llm/sakhilabs/configs/sakhi-telugu-1B-pretrained-0725.yaml"
+    config = SakhiConfig._load_config(config_path=config_path)
+    pretraining_run(config = config)
