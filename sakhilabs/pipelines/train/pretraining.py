@@ -439,4 +439,4 @@ def pretraining_run(config: SakhiConfig):
 if __name__ == "__main__":
     config_path = "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-llm/sakhilabs/configs/sakhi-telugu-1B-pretrained-0725.yaml"
     config = SakhiConfig._load_config(config_path=config_path)
-    pretraining_run(config = config)
+    pretraining_run(config=config)

@@ -32,8 +32,9 @@ def do_sanity_checks(config):
 
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
-        #assert os.environ["MASTER_ADDR"], "Master Node variable not found"
-        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_ADDR"] = (
+            os.environ["MASTER_ADDR"] or config.train_parameters.master_addr
+        )
         os.environ["MASTER_PORT"] = config.train_parameters.master_port
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
         torch.cuda.set_device(rank)

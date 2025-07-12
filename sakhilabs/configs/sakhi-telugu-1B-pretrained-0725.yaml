@@ -14,17 +14,17 @@ model_parameters:
 train_parameters:
   batch_size: 4
   num_epochs: 1
-  init_learning_rate: 1e-5
-  min_learning_rate: 1e-8
+  init_learning_rate: 1e-4
+  min_learning_rate: 1e-7
   seed: 42
   master_addr: "localhost"
   master_port: "29500"
   num_gpus: -1
-  save_every_n_steps: 50000
+  save_every_n_steps: 150000
   log_every_n_steps: 100
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 4
   resume: ""
 
 logger:
