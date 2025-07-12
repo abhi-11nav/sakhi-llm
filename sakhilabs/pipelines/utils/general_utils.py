@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 from torch.distributed import init_process_group
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
@@ -97,3 +98,10 @@ def setup_logging(rank, log_dir="logs"):
     logger.addHandler(file_handler)
 
     return logger
+
+
+def print_fsdp_wrapped_modules(module, prefix=""):
+    for name, child in module.named_children():
+        if isinstance(child, FSDP):
+            print(f"{prefix}FSDP wrapped: {name}")
+        print_fsdp_wrapped_modules(child, prefix + "  ")

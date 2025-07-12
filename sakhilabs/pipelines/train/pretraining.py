@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from functools import partial
 
 import torch
 import torch.multiprocessing as mp
@@ -17,6 +18,7 @@ from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
                                                                 MixedPrecision)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
@@ -25,16 +27,16 @@ from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.data.loaders.pretrain import CustomDataset
 from sakhilabs.model.components.decoder import TransformerDecoderBlock
 from sakhilabs.model.model import SakhiModel
-from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
-                                                     setup_logging)
+from sakhilabs.pipelines.utils.general_utils import (
+    do_sanity_checks, print_fsdp_wrapped_modules, setup, setup_logging)
 from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
 
 
-def custom_fsdp_wrap_policy(module, recurse, nonwrapped_numel):
-    return isinstance(module, TransformerDecoderBlock)
-
-
 def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
+    auto_wrap_policy = partial(
+        transformer_auto_wrap_policy, transformer_layer_cls={TransformerDecoderBlock}
+    )
+
     model = SakhiModel(
         embed_dim=config.model_parameters.embed_dim,
         num_heads=config.model_parameters.num_heads,
@@ -47,7 +49,6 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
         model = torch.compile(model)
 
     if world_size > 1:
-        auto_wrap_policy = custom_fsdp_wrap_policy
         mixed_precision_policy = MixedPrecision(
             param_dtype=torch.float16,
             reduce_dtype=torch.float16,
@@ -60,6 +61,7 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
             auto_wrap_policy=auto_wrap_policy,
             mixed_precision=mixed_precision_policy,
             cpu_offload=CPUOffload(offload_params=False),
+            use_orig_params=True,
         )
 
     # Load checkpoint (after wrapping for FSDP)
@@ -128,6 +130,8 @@ def train(
         logger.info("Initializing Sakhi model...")
         sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
 
+        if world_size > 1:
+            print_fsdp_wrapped_modules(sakhi_model)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if config.logger.wandb:
