@@ -9,6 +9,9 @@ import torch.nn as nn
 import wandb
 from torch.amp import autocast
 from torch.distributed import destroy_process_group
+from torch.distributed.checkpoint.state_dict import (StateDictType,
+                                                     get_state_dict,
+                                                     set_state_dict)
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
@@ -65,11 +68,9 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
     ):
         resume_path = config.train_parameters.resume
         print(f"[Rank {rank}] Loading model checkpoint from: {resume_path}")
-
         if world_size > 1:
-            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT):
-                state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
-                model.load_state_dict(state_dict)
+            loaded_state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
+            set_state_dict(model, loaded_state_dict, state_dict_type=StateDictType.FULL)
         else:
             state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
             model.load_state_dict(state_dict)
@@ -299,11 +300,9 @@ def train(
                     )
 
                     if world_size > 1:
-                        with FSDP.state_dict_type(
-                            sakhi_model, StateDictType.FULL_STATE_DICT
-                        ):
-                            state_dict = sakhi_model.state_dict()
-
+                        state_dict = get_state_dict(
+                            sakhi_model, state_dict_type=StateDictType.FULL
+                        )
                     else:
                         state_dict = sakhi_model.state_dict()
 
@@ -389,9 +388,9 @@ def train(
             model_save_dir = config.paths.model_dir
             final_model_filename = f"{model_save_dir}/soki_model_final.pth"
             if world_size > 1:
-                with FSDP.state_dict_type(sakhi_model, StateDictType.FULL_STATE_DICT):
-                    state_dict = sakhi_model.state_dict()
-
+                state_dict = get_state_dict(
+                    sakhi_model, state_dict_type=StateDictType.FULL
+                )
             else:
                 state_dict = sakhi_model.state_dict()
 
