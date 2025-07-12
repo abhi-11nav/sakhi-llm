@@ -10,7 +10,7 @@ class CustomDataset(IterableDataset):
         self,
         jsonl_path: str,
         chunk_length: int,
-        max_samples: Optional[int] = 1000,
+        max_samples: Optional[int] = None,
     ):
         self.jsonl_path = jsonl_path
         self.chunk_length = chunk_length
