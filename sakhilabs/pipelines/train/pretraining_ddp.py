@@ -22,7 +22,7 @@ from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
 from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
 
 
-def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
+def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
     model = SakhiModel(
         embed_dim=config.model_parameters.embed_dim,
         num_heads=config.model_parameters.num_heads,
