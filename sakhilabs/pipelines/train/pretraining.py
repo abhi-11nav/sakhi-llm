@@ -10,11 +10,11 @@ import torch.nn as nn
 import wandb
 from torch.amp import autocast
 from torch.distributed import destroy_process_group
-from torch.distributed.checkpoint.state_dict import (StateDictType,
+from torch.distributed.checkpoint.state_dict import (StateDictOptions,
+                                                     StateDictType,
                                                      get_state_dict,
                                                      set_state_dict)
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
                                                                 MixedPrecision)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -307,7 +307,7 @@ def train(
                         state_dict = get_state_dict(
                             sakhi_model,
                             optimizers=optimizer,
-                            options=StateDictType.FULL_STATE_DICT,
+                            options=StateDictOptions(full_state_dict=True),
                         )
                     else:
                         state_dict = sakhi_model.state_dict()
@@ -397,7 +397,7 @@ def train(
                 state_dict = get_state_dict(
                     sakhi_model,
                     optimizers=optimizer,
-                    options=StateDictType.FULL_STATE_DICT,
+                    options=StateDictOptions(full_state_dict=True),
                 )
             else:
                 state_dict = sakhi_model.state_dict()
