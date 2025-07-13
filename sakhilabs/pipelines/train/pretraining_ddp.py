@@ -87,6 +87,7 @@ def train(
         dataset = CustomDataset(
             config.paths.dataset_path,
             chunk_length=config.model_parameters.chunk_length,
+            start_sample=config.data_loader.start_sample,
         )
 
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
@@ -183,6 +184,8 @@ def train(
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
                 labels = batch["labels"].to(rank, non_blocking=True)
 
+                actual_batch_size = input_ids.size(0)
+
                 with autocast(device_type="cuda"):
                     output_logits = sakhi_model(input_ids)
                     loss = criterion(
@@ -206,6 +209,14 @@ def train(
                     optimizer.zero_grad()
 
                     scheduler.step()
+
+                global_sample_index += actual_batch_size
+
+                if (i + 1) % save_every_n_steps == 0 and rank == 0:
+                    with open(
+                        os.path.join(config.paths.save_dir, "start_sample.json"), "w"
+                    ) as f:
+                        json.dump({"start_sample": global_sample_index}, f)
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()

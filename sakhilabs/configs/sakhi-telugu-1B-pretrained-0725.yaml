@@ -34,6 +34,7 @@ logger:
 data_loader:
   num_workers: 0
   pin_memory: true
+  start_sample: 0
 
 inference_parameters:
   max_new_tokens: 300
