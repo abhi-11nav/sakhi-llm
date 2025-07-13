@@ -305,7 +305,7 @@ def train(
 
                     if world_size > 1:
                         state_dict = get_state_dict(
-                            sakhi_model, state_dict_type=StateDictType.FULL
+                            sakhi_model, state_dict_type=StateDictType.FULL_STATE_DICT
                         )
                     else:
                         state_dict = sakhi_model.state_dict()
@@ -393,7 +393,7 @@ def train(
             final_model_filename = f"{model_save_dir}/soki_model_final.pth"
             if world_size > 1:
                 state_dict = get_state_dict(
-                    sakhi_model, state_dict_type=StateDictType.FULL
+                    sakhi_model, state_dict_type=StateDictType.FULL_STATE_DICT
                 )
             else:
                 state_dict = sakhi_model.state_dict()
