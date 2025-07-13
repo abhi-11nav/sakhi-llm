@@ -34,7 +34,9 @@ def do_sanity_checks(config):
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
         os.environ["MASTER_ADDR"] = (
-            os.environ["MASTER_ADDR"] if "MASTER_ADDR" in os.environ else config.train_parameters.master_addr
+            os.environ["MASTER_ADDR"]
+            if "MASTER_ADDR" in os.environ
+            else config.train_parameters.master_addr
         )
         os.environ["MASTER_PORT"] = config.train_parameters.master_port
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
