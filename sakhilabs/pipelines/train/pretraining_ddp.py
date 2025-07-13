@@ -9,16 +9,17 @@ import torch.nn as nn
 import wandb
 from torch.amp import GradScaler, autocast
 from torch.distributed import destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
-from torch.nn.parallel import DistributedDataParallel as DDP
-from sakhilabs.configs.utils.config import SakhiConfig
-from sakhilabs.data.custom_dataset.pretraining.custom_dataset import \
-    CustomDataset
-from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup, setup_logging)
-from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
+
+from sakhilabs.configs.utils.load_config import SakhiConfig
+from sakhilabs.data.loaders.pretrain import CustomDataset
 from sakhilabs.model.model import SakhiModel
+from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
+                                                     setup_logging)
+from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
 
 
 def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
@@ -40,10 +41,11 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
             )
             model.load_state_dict(state_dict)
 
-    #model.resize_token_embeddings(new_vocab_size=len(tokenizer))
+    # model.resize_token_embeddings(new_vocab_size=len(tokenizer))
     sakhi_model = DDP(model, device_ids=[rank]) if world_size > 1 else model
 
     return sakhi_model
+
 
 def train(
     rank: int,
@@ -382,7 +384,7 @@ def pretraining_run(config: SakhiConfig):
     config.model_parameters.vocab_size = len(tokenizer)
     del tokenizer
     os.environ["WANDB_MODE"] = config.logger.mode
-    
+
     if world_size > 1:
         # DDP
         mp.spawn(
