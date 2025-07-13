@@ -67,6 +67,6 @@ class CustomDataset(IterableDataset):
                     continue
 
     def __len__(self):
-        # Pre computed; Change according to your dataset size
-        dataset_len = 12_641_053
+        # Pre computed; Change according to your dataset size                      
+        dataset_len = 14_115_069
         return dataset_len // self.world_size
