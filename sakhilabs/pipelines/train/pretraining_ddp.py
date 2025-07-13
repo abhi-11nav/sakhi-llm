@@ -179,7 +179,7 @@ def train(
             optimizer.zero_grad()
 
             global_sample_index = 0
-            
+
             for i, batch in batch_iterator:
                 batch_start_time = time.time()
 
