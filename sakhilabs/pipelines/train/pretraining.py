@@ -1,83 +1,70 @@
 import json
+import logging
 import os
 import time
 from datetime import datetime
-from functools import partial
+from pathlib import Path
+from typing import Optional
 
 import torch
+import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import wandb
-from torch.amp import autocast
+from pkg_resources import packaging
+from torch.amp import GradScaler, autocast
+from torch.cuda.nccl import nccl
 from torch.distributed import destroy_process_group
-from torch.distributed.checkpoint.state_dict import (StateDictOptions,
-                                                     StateDictType,
-                                                     get_state_dict,
-                                                     set_state_dict)
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp.fully_sharded_data_parallel import (CPUOffload,
-                                                                MixedPrecision)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.data.loaders.pretrain import CustomDataset
-from sakhilabs.model.components.decoder import TransformerDecoderBlock
+from sakhilabs.data.loaders.pretrain import SakhiPreTrainDataset
 from sakhilabs.model.model import SakhiModel
-from sakhilabs.pipelines.utils.general_utils import (
-    do_sanity_checks, print_fsdp_wrapped_modules, setup, setup_logging)
+from sakhilabs.pipelines.utils.constants import TrainMode
+from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
+from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
+                                                     setup_logging)
 from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
 
+general_logger = logging.getLogger("__name__")
 
-def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
-    auto_wrap_policy = partial(
-        transformer_auto_wrap_policy, transformer_layer_cls={TransformerDecoderBlock}
+
+def get_dataset(
+    dataset_path: str,
+    chunk_length: int,
+    batch_size: int,
+    num_workers: int,
+    pin_memory: bool = True,
+    start_sample: int = 0,
+    max_samples: Optional[int] = None,
+) -> DataLoader:
+    dataset = SakhiPreTrainDataset(
+        jsonl_path=dataset_path,
+        chunk_length=chunk_length,
+        start_sample=start_sample,
+        max_samples=max_samples,
+    )
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
     )
 
-    model = SakhiModel(
-        embed_dim=config.model_parameters.embed_dim,
-        num_heads=config.model_parameters.num_heads,
-        ff_dim=config.model_parameters.ff_dim,
-        vocab_size=config.model_parameters.vocab_size,
-        num_layers=config.model_parameters.num_layers,
-    ).to(rank)
+    return data_loader
 
-    if config.train_parameters.call_torch_compile_on_model:
-        model = torch.compile(model)
 
-    if world_size > 1:
-        mixed_precision_policy = MixedPrecision(
-            param_dtype=torch.float16,
-            reduce_dtype=torch.float16,
-            buffer_dtype=torch.float16,
-        )
+def get_scaler(training_mode: TrainMode):
+    if training_mode == TrainMode.FSDP:
+        scaler = ShardedGradScaler()
+    else:
+        scaler = GradScaler()
 
-        model = FSDP(
-            model,
-            device_id=rank,
-            auto_wrap_policy=auto_wrap_policy,
-            mixed_precision=mixed_precision_policy,
-            cpu_offload=CPUOffload(offload_params=False),
-            use_orig_params=True,
-        )
-
-    # Load checkpoint (after wrapping for FSDP)
-    if config.train_parameters.resume and os.path.isfile(
-        config.train_parameters.resume
-    ):
-        resume_path = config.train_parameters.resume
-        print(f"[Rank {rank}] Loading model checkpoint from: {resume_path}")
-        if world_size > 1:
-            loaded_state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
-            set_state_dict(model, loaded_state_dict, state_dict_type=StateDictType.FULL)
-        else:
-            state_dict = torch.load(resume_path, map_location=f"cuda:{rank}")
-            model.load_state_dict(state_dict)
-
-    return model
+    return scaler
 
 
 def train(
@@ -89,8 +76,6 @@ def train(
         log_dir = config.paths.log_dir
         logger = setup_logging(rank, log_dir=log_dir)
         logger.info(f"Starting DDP training on rank {rank}")
-
-        save_every_n_steps = config.train_parameters.save_every_n_steps
 
         training_data = {
             "config": {
@@ -113,26 +98,49 @@ def train(
         }
 
         setup(rank, world_size, config)
-        torch.cuda.set_device(rank)
-
         logger.info(f"Process group initialized for rank {rank}")
 
         # Create dataset
         logger.info("Creating dataset")
-        dataset = CustomDataset(
-            config.paths.dataset_path,
-            chunk_length=config.model_parameters.chunk_length,
-        )
 
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
-
-        # Create model and move to GPU
         logger.info("Initializing Sakhi model...")
-        sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
 
-        if world_size > 1:
-            print_fsdp_wrapped_modules(sakhi_model)
+        # Model initialization
+        sakhi_model = get_sakhi_model(
+            embed_dim=config.model_parameters.embed_dim,
+            num_heads=config.model_parameters.num_heads,
+            ff_dim=config.model_parameters.ff_dim,
+            vocab_size=config.model_parameters.vocab_size,
+            num_layers=config.model_parameters.num_layers,
+            rank=rank,
+            world_size=world_size,
+            train_mode=TrainMode(config.train_parameters.mode),
+            resume=config.train_parameters.resume,
+            resize_model_output_to_size=config.model_parameters.vocab_size,
+            fp16=True,
+        )
+
+        if config.train_parameters.half_precision:
+            verify_bfloat_16_support = (
+                torch.version.cuda
+                and torch.cuda.is_bf16_supported()
+                and packaging.version.parse(torch.version.cuda) >= (12, 0)
+                and dist.is_nccl_available()
+                and nccl.get_version() >= (2, 10)
+            )
+            if not verify_bfloat_16_support:
+                raise ValueError(
+                    "Bfloat16 is not supported on this system. Please use a different precision."
+                )
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if rank == 0:
+            model_ref = sakhi_model.module if world_size > 1 else sakhi_model
+            total_params = sum(p.numel() for p in model_ref.parameters())
+            logger.info(f"Model initialized with {total_params:,} parameters")
+            training_data["config"]["total_parameters"] = total_params
 
         if config.logger.wandb:
             wandb.init(
@@ -156,19 +164,12 @@ def train(
                 reinit=True,
             )
 
-        if rank == 0:
-            total_params = sum(p.numel() for p in sakhi_model.parameters())
-            logger.info(f"Model initialized with {total_params:,} parameters")
-            training_data["config"]["total_parameters"] = total_params
-
-        logger.info(
-            f"Initializing DataLoader with batch_size={config.train_parameters.batch_size}"
-        )
-        data_loader = DataLoader(
-            dataset,
-            batch_size=config.train_parameters.batch_size,
-            num_workers=config.data_loader.num_workers,
-            pin_memory=config.data_loader.pin_memory,
+        # Data
+        data_loader = get_dataset(
+            dataset_path=config.paths.dataset_path,
+            chunk_length=config.model_parameters.chunk_length,
+            start_sample=config.data_loader.start_sample,
+            max_samples=config.data_loader.max_samples,
         )
 
         # Loss, Optimizer and LRScheduler
@@ -185,10 +186,11 @@ def train(
             eta_min=float(config.train_parameters.min_learning_rate),
         )
 
+        # TRAINING LOOP
         logger.info("Starting training loop...")
         training_start_time = time.time()
 
-        scaler = ShardedGradScaler()
+        scaler = get_scaler(training_mode=TrainMode(config.train_parameters.mode))
 
         # Training loop
         for epoch in range(config.train_parameters.num_epochs):
@@ -213,11 +215,15 @@ def train(
 
             optimizer.zero_grad()
 
+            global_sample_index = 0
+
             for i, batch in batch_iterator:
                 batch_start_time = time.time()
 
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
                 labels = batch["labels"].to(rank, non_blocking=True)
+
+                actual_batch_size = input_ids.size(0)
 
                 with autocast(device_type="cuda"):
                     output_logits = sakhi_model(input_ids)
@@ -242,6 +248,16 @@ def train(
                     optimizer.zero_grad()
 
                     scheduler.step()
+
+                global_sample_index += actual_batch_size
+
+                if (
+                    i + 1
+                ) % config.train_parameters.save_every_n_steps == 0 and rank == 0:
+                    with open(
+                        os.path.join(config.paths.save_dir, "start_sample.json"), "w"
+                    ) as f:
+                        json.dump({"start_sample": global_sample_index}, f)
 
                 batch_time = time.time() - batch_start_time
                 loss_value = loss.item()
@@ -294,24 +310,19 @@ def train(
                 # Save model at n steps in each epoch
                 if (
                     rank == 0
-                    and save_every_n_steps
+                    and config.train_parameters.save_every_n_steps
                     and i > 0
-                    and i % save_every_n_steps == 0
+                    and i % config.train_parameters.save_every_n_steps == 0
                 ):
                     model_save_dir = config.paths.model_dir
                     model_filename = (
                         f"{model_save_dir}/soki_model_epoch_{epoch + 1}_step{i}.pth"
                     )
-
-                    if world_size > 1:
-                        state_dict = get_state_dict(
-                            sakhi_model,
-                            optimizers=optimizer,
-                            options=StateDictOptions(full_state_dict=True),
-                        )
-                    else:
-                        state_dict = sakhi_model.state_dict()
-
+                    state_dict = (
+                        sakhi_model.module.state_dict()
+                        if world_size > 1
+                        else sakhi_model.state_dict()
+                    )
                     torch.save(state_dict, model_filename)
                     logger.info(f"Model saved to {model_filename}")
 
@@ -393,29 +404,21 @@ def train(
         if rank == 0:
             model_save_dir = config.paths.model_dir
             final_model_filename = f"{model_save_dir}/soki_model_final.pth"
-            if world_size > 1:
-                state_dict = get_state_dict(
-                    sakhi_model,
-                    optimizers=optimizer,
-                    options=StateDictOptions(full_state_dict=True),
-                )
-            else:
-                state_dict = sakhi_model.state_dict()
-
+            state_dict = (
+                sakhi_model.module.state_dict()
+                if world_size > 1
+                else sakhi_model.state_dict()
+            )
             torch.save(state_dict, final_model_filename)
             logger.info(f"Final model saved to {final_model_filename}")
 
         logger.info(f"Rank {rank} training completed. Cleaning up...")
+
     except Exception as e:
-        logger.error(f"Error occured while training {e}")
-        raise
-    finally:
-        if world_size > 1:
-            destroy_process_group()
+        raise f"Somethig went wrong {e}"
 
 
 def pretraining_run(config: SakhiConfig):
-    # do sanity checks and set seed
     do_sanity_checks(config=config)
     set_seed(seed=config.train_parameters.seed)
 
@@ -426,9 +429,12 @@ def pretraining_run(config: SakhiConfig):
         else config.train_parameters.num_gpus
     )
 
-    config.model_parameters.vocab_size = len(tokenizer)
-    del tokenizer
+    if config.model_parameters.vocab_size != len(tokenizer):
+        general_logger.warning(
+            f"Vocab size mismatch between model and tokenizer. Please be sure that this is expected."
+        )
 
+    general_logger.info(f"Setting WANDB_MODE to {config.logger.mode}")
     os.environ["WANDB_MODE"] = config.logger.mode
 
     if world_size > 1:

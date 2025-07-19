@@ -15,36 +15,13 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.data.loaders.pretrain import CustomDataset
+from sakhilabs.data.loaders.pretrain import SakhiPreTrainDataset
 from sakhilabs.model.model import SakhiModel
+from sakhilabs.pipelines.utils.constants import TrainMode
+from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
                                                      setup_logging)
 from sakhilabs.pipelines.utils.training_utils import hash_tensor, set_seed
-
-
-def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig):
-    model = SakhiModel(
-        embed_dim=config.model_parameters.embed_dim,
-        num_heads=config.model_parameters.num_heads,
-        ff_dim=config.model_parameters.ff_dim,
-        vocab_size=config.model_parameters.vocab_size,
-        num_layers=config.model_parameters.num_layers,
-    ).to(rank)
-
-    if config.train_parameters.call_torch_compile_on_model:
-        model = torch.compile(model)
-
-    if config.train_parameters.resume:
-        if os.path.isfile(config.train_parameters.resume):
-            state_dict = torch.load(
-                config.train_parameters.resume, map_location=f"cuda:{rank}"
-            )
-            model.load_state_dict(state_dict)
-
-    # model.resize_token_embeddings(new_vocab_size=len(tokenizer))
-    sakhi_model = DDP(model, device_ids=[rank]) if world_size > 1 else model
-
-    return sakhi_model
 
 
 def train(
@@ -84,17 +61,27 @@ def train(
 
         # Create dataset
         logger.info("Creating dataset")
-        dataset = CustomDataset(
+        dataset = SakhiPreTrainDataset(
             config.paths.dataset_path,
             chunk_length=config.model_parameters.chunk_length,
             start_sample=config.data_loader.start_sample,
         )
 
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
-
-        # Create model and move to GPU
         logger.info("Initializing Sakhi model...")
-        sakhi_model = get_sakhi_model(rank=rank, world_size=world_size, config=config)
+
+        sakhi_model = get_sakhi_model(
+            embed_dim=config.model_parameters.embed_dim,
+            num_heads=config.model_parameters.num_heads,
+            ff_dim=config.model_parameters.ff_dim,
+            vocab_size=config.model_parameters.vocab_size,
+            num_layers=config.model_parameters.num_layers,
+            rank=rank,
+            world_size=world_size,
+            train_mode=TrainMode.DDP,
+            resume=config.train_parameters.resume,
+            resize_model_output_to_size=config.model_parameters.vocab_size,
+        )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 

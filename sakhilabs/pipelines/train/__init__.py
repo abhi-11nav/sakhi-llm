@@ -1,2 +1,2 @@
 from sakhilabs.pipelines.train.instruction_tune import instruction_tuning_run
-from sakhilabs.pipelines.train.pretraining_FSDP import pretraining_run
+from sakhilabs.pipelines.train.pretrain.pretraining_FSDP import pretraining_run

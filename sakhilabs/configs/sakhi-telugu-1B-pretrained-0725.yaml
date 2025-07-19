@@ -25,7 +25,9 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 4
-  resume: ""
+  half_precision: True
+  resume: null
+  mode: "ddp"
 
 logger:
   wandb: False
@@ -35,6 +37,7 @@ data_loader:
   num_workers: 0
   pin_memory: true
   start_sample: 0
+  max_samples: null
 
 inference_parameters:
   max_new_tokens: 300

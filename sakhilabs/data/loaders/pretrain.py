@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import IterableDataset, get_worker_info
 
 
-class CustomDataset(IterableDataset):
+class SakhiPreTrainDataset(IterableDataset):
     def __init__(
         self,
         jsonl_path: str,
