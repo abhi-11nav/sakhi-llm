@@ -435,3 +435,8 @@ def instruction_tuning_run(config: SakhiConfig):
         )
     else:
         train(rank=0, world_size=world_size, config=config, tokenizer=tokenizer)
+
+
+if __name__ == "__main__":
+    config = SakhiConfig._load_config(config_path="sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml")
+    instruction_tuning_run(config=config)

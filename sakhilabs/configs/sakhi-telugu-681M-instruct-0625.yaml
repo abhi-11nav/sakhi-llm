@@ -28,7 +28,7 @@ train_parameters:
   resume: "/root/data/model/soki_model_epoch_1_step250000.pth"
 
 logger:
-  wandb: True
+  wandb: False
 
 data_loader:
   num_workers: 0

@@ -8,7 +8,6 @@ from transformers import PreTrainedTokenizerFast
 logger = logging.getLogger(__name__)
 
 
-
 class DataIterator:
     def __init__(self, jsonl_path, text_key="text", eos_token="<|eos|>"):
         self.jsonl_path = jsonl_path
