@@ -2,7 +2,6 @@ import json
 import os
 import time
 from datetime import datetime
-from functools import partial
 
 import torch
 import torch.multiprocessing as mp
@@ -11,9 +10,7 @@ import wandb
 from torch.amp import autocast
 from torch.distributed import destroy_process_group
 from torch.distributed.checkpoint.state_dict import (StateDictOptions,
-                                                     StateDictType,
-                                                     get_state_dict,
-                                                     set_state_dict)
+                                                     get_state_dict)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -21,7 +18,6 @@ from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.data.loaders.pretrain import SakhiPreTrainDataset
-from sakhilabs.model.model import SakhiModel
 from sakhilabs.pipelines.utils.constants import TrainMode
 from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
 from sakhilabs.pipelines.utils.general_utils import (

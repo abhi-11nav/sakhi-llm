@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import torch
@@ -14,16 +13,13 @@ import wandb
 from pkg_resources import packaging
 from torch.amp import GradScaler, autocast
 from torch.cuda.nccl import nccl
-from torch.distributed import destroy_process_group
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.data.loaders.pretrain import SakhiPreTrainDataset
-from sakhilabs.model.model import SakhiModel
 from sakhilabs.pipelines.utils.constants import TrainMode
 from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
@@ -431,7 +427,7 @@ def pretraining_run(config: SakhiConfig):
 
     if config.model_parameters.vocab_size != len(tokenizer):
         general_logger.warning(
-            f"Vocab size mismatch between model and tokenizer. Please be sure that this is expected."
+            "Vocab size mismatch between model and tokenizer. Please be sure that this is expected."
         )
 
     general_logger.info(f"Setting WANDB_MODE to {config.logger.mode}")

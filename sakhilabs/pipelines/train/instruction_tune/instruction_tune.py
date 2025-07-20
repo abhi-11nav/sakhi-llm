@@ -438,5 +438,7 @@ def instruction_tuning_run(config: SakhiConfig):
 
 
 if __name__ == "__main__":
-    config = SakhiConfig._load_config(config_path="sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml")
+    config = SakhiConfig._load_config(
+        config_path="sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml"
+    )
     instruction_tuning_run(config=config)
