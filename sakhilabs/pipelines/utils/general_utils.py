@@ -4,9 +4,10 @@ from pathlib import Path
 
 import torch
 from torch.distributed import init_process_group
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.model.model import SakhiModel
 
 
@@ -32,9 +33,12 @@ def do_sanity_checks(config):
 
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
-        os.environ["MASTER_ADDR"] = config.train_parameters.master_addr
+        os.environ["MASTER_ADDR"] = (
+            os.environ["MASTER_ADDR"]
+            if "MASTER_ADDR" in os.environ
+            else config.train_parameters.master_addr
+        )
         os.environ["MASTER_PORT"] = config.train_parameters.master_port
-
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
         torch.cuda.set_device(rank)
     else:
@@ -96,3 +100,10 @@ def setup_logging(rank, log_dir="logs"):
     logger.addHandler(file_handler)
 
     return logger
+
+
+def print_fsdp_wrapped_modules(module, prefix=""):
+    for name, child in module.named_children():
+        if isinstance(child, FSDP):
+            print(f"{prefix}FSDP wrapped: {name}")
+        print_fsdp_wrapped_modules(child, prefix + "  ")

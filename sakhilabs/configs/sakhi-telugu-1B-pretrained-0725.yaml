@@ -1,0 +1,44 @@
+paths:
+  tokenizer_path: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/rakhi-data/tokenizers/sakhi_tokenizer_128K"
+  dataset_path: "/home/abhi11/scratch/abhinav/tokenized_chunks.jsonl"
+  save_dir: "local-data"
+
+model_parameters:
+  embed_dim: 2048
+  num_heads: 32
+  ff_dim: 8192
+  chunk_length: 4096
+  num_layers: 12
+  vocab_size: 128000
+
+train_parameters:
+  batch_size: 4
+  num_epochs: 1
+  init_learning_rate: 1e-4
+  min_learning_rate: 1e-7
+  seed: 42
+  master_addr: "localhost"
+  master_port: "29500"
+  num_gpus: -1
+  save_every_n_steps: 150000
+  log_every_n_steps: 100
+  gradient_clipping_max_norm: 3.0
+  call_torch_compile_on_model: False
+  gradient_accumulation_steps: 4
+  half_precision: True
+  resume: null
+  mode: "ddp"
+
+logger:
+  wandb: False
+  mode: offline
+
+data_loader:
+  num_workers: 0
+  pin_memory: true
+  start_sample: 0
+  max_samples: null
+
+inference_parameters:
+  max_new_tokens: 300
+  model: ""

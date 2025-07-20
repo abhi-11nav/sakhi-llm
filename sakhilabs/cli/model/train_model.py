@@ -1,4 +1,4 @@
-from sakhilabs.configs.utils.config import SakhiConfig
+from sakhilabs.configs.utils.load_config import SakhiConfig
 from sakhilabs.pipelines.train import instruction_tuning_run, pretraining_run
 
 
@@ -20,7 +20,7 @@ def sakhi_training_args(subparsers):
     train_parser.add_argument(
         "--config",
         type=str,
-        default="sakhi/configs/sakhi_telugu__681M.yaml",
+        required=True,
         help="Config for model parameters and training",
     )
 

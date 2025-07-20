@@ -1,6 +1,3 @@
-# NOTE: The raw text has already been tokenized to simplify the dataloader implementation.
-
-
 import json
 from typing import Optional
 
@@ -8,16 +5,18 @@ import torch
 from torch.utils.data import IterableDataset, get_worker_info
 
 
-class CustomDataset(IterableDataset):
+class SakhiPreTrainDataset(IterableDataset):
     def __init__(
         self,
         jsonl_path: str,
         chunk_length: int,
         max_samples: Optional[int] = None,
+        start_sample: int = 0,
     ):
         self.jsonl_path = jsonl_path
         self.chunk_length = chunk_length
         self.max_samples = max_samples
+        self.start_sample = start_sample
 
         if torch.distributed.is_initialized():
             self.rank = torch.distributed.get_rank()
@@ -29,6 +28,7 @@ class CustomDataset(IterableDataset):
     def __iter__(self):
         """
         Yields torch tensors of input_ids and labels from pre-tokenized JSON lines.
+        Skips until `start_sample` is reached.
         """
         worker_info = get_worker_info()
         if worker_info is None:
@@ -42,9 +42,15 @@ class CustomDataset(IterableDataset):
         shard_id = self.rank * num_workers + worker_id
 
         sample_count = 0
+        yielded_samples = 0
+
         with open(self.jsonl_path, "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
                 if i % total_shards != shard_id:
+                    continue
+
+                if yielded_samples < self.start_sample:
+                    yielded_samples += 1
                     continue
 
                 try:
@@ -71,5 +77,5 @@ class CustomDataset(IterableDataset):
 
     def __len__(self):
         # Pre computed; Change according to your dataset size
-        dataset_len = 12_641_053
+        dataset_len = 14_115_069
         return dataset_len // self.world_size
