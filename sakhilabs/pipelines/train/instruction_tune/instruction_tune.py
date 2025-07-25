@@ -442,3 +442,4 @@ if __name__ == "__main__":
         config_path="sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml"
     )
     instruction_tuning_run(config=config)
+    # Sample {"tel_Telu": [["బోష్ తండ్రి ఎవరు?", "బోష్ తండ్రి మికీ హాలర్ ఎస్ఆర్. ప్రసిద్ధ డిఫెన్స్ న్యాయవాది."]]}

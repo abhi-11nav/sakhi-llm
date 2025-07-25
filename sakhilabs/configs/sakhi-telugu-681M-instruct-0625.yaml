@@ -1,6 +1,6 @@
 paths:
-  tokenizer_path: "/root/data/tokenizer_64k"
-  dataset_path: "/root/data/data/final_instruction_tuned.json"
+  tokenizer_path: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-telugu-681M-pretrained-0625/tokenizer"
+  dataset_path: "/home/abhi11/scratch/abhinav/instruction-tune_dataset.jsonl"
   save_dir: "local-data"
 
 model_parameters:
@@ -13,7 +13,7 @@ model_parameters:
 
 train_parameters:
   batch_size: 48
-  num_epochs: 3
+  num_epochs: 4
   init_learning_rate: 1e-4
   min_learning_rate: 1e-6
   seed: 42
@@ -25,7 +25,7 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
-  resume: "/root/data/model/soki_model_epoch_1_step250000.pth"
+  resume: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-telugu-681M-pretrained-0625/pytorch_model.bin"
 
 logger:
   wandb: False
