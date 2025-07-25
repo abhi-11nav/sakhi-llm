@@ -202,3 +202,6 @@ venv_sakhi/
 .DS_Store
 wandb/
 scripts/
+
+job.sh
+sakhi1Btrainrun/
