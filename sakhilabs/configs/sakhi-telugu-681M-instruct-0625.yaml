@@ -1,5 +1,5 @@
 paths:
-  tokenizer_path: "/root/data/tokenizer_64k"
+  tokenizer_path: "local-data/models/sakhi-telugu-681M-instruct-0625/tokenizer"
   dataset_path: "/root/data/data/final_instruction_tuned.json"
   save_dir: "local-data"
 
@@ -9,7 +9,7 @@ model_parameters:
   ff_dim: 4096
   chunk_length: 1024
   num_layers: 10
-  vocab_size: 64000
+  vocab_size: 64002
 
 train_parameters:
   batch_size: 48
@@ -25,7 +25,8 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
-  resume: "/root/data/model/soki_model_epoch_1_step250000.pth"
+  mode: "general"
+  resume: "local-data/models/sakhi-telugu-681M-instruct-0625/pytorch_model.bin"
 
 logger:
   wandb: False

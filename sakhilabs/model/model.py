@@ -78,57 +78,89 @@ class SakhiModel(nn.Module):
         top_p: float = 0.90,
         repetition_penalty: float = 1.2,
         no_repeat_ngram_size: int = 4,
-    ) -> str:
-        generated = input_ids.clone()
+        num_responses: int = 4,
+        tokenizer=None,
+    ) -> torch.Tensor:
+        all_responses = []
 
-        with torch.no_grad():
-            for _ in tqdm(range(max_new_tokens), desc="Generating"):
-                output = self(generated)
-                logits = output[:, -1, :]
+        for _ in range(num_responses):
+            generated = input_ids.clone()
 
-                # Repetition penalty
-                for token_id in set(generated[0].tolist()):
-                    logits[0, token_id] /= repetition_penalty
+            with torch.no_grad():
+                for _ in range(max_new_tokens):
+                    output = self(generated)
+                    logits = output[:, -1, :]
 
-                # Top-k filtering
-                if top_k > 0:
-                    top_k_values, _ = torch.topk(logits, top_k)
-                    logits[logits < top_k_values[:, -1].unsqueeze(1)] = -float("Inf")
+                    # Repetition penalty
+                    for token_id in set(generated[0].tolist()):
+                        logits[0, token_id] /= repetition_penalty
 
-                # Top-p (nucleus) filtering
-                if top_p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                    cumulative_probs = torch.cumsum(
-                        F.softmax(sorted_logits, dim=-1), dim=-1
-                    )
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[
-                        :, :-1
-                    ].clone()
-                    sorted_indices_to_remove[:, 0] = 0
-                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                    logits[0, indices_to_remove] = -float("Inf")
+                    # Top-k filtering
+                    if top_k > 0:
+                        top_k_values, _ = torch.topk(logits, top_k)
+                        logits[logits < top_k_values[:, -1].unsqueeze(1)] = -float(
+                            "Inf"
+                        )
 
-                # Sampling with temperature
-                probs = F.softmax(logits / temperature, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-                generated = torch.cat([generated, next_token], dim=1)
+                    # Top-p (nucleus) filtering
+                    if top_p < 1.0:
+                        sorted_logits, sorted_indices = torch.sort(
+                            logits, descending=True
+                        )
+                        cumulative_probs = torch.cumsum(
+                            F.softmax(sorted_logits, dim=-1), dim=-1
+                        )
+                        sorted_indices_to_remove = cumulative_probs > top_p
+                        sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[
+                            :, :-1
+                        ].clone()
+                        sorted_indices_to_remove[:, 0] = 0
+                        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                        logits[0, indices_to_remove] = -float("Inf")
 
-                # Stop if repeating n-grams
-                if (
-                    no_repeat_ngram_size > 0
-                    and generated.shape[1] > no_repeat_ngram_size
-                ):
-                    last_ngram = generated[0, -no_repeat_ngram_size:].tolist()
-                    all_ngrams = [
-                        generated[0, i : i + no_repeat_ngram_size].tolist()
-                        for i in range(generated.shape[1] - no_repeat_ngram_size)
-                    ]
-                    if last_ngram in all_ngrams[:-1]:
-                        break
+                    # Sampling with temperature
+                    probs = F.softmax(logits / temperature, dim=-1)
+                    next_token = torch.multinomial(probs, num_samples=1)
+                    generated = torch.cat([generated, next_token], dim=1)
 
-        output_tokens = generated[0][input_ids.shape[1] :]
-        return output_tokens
+                    # Stop if repeating n-grams
+                    if (
+                        no_repeat_ngram_size > 0
+                        and generated.shape[1] > no_repeat_ngram_size
+                    ):
+                        last_ngram = generated[0, -no_repeat_ngram_size:].tolist()
+                        all_ngrams = [
+                            generated[0, i : i + no_repeat_ngram_size].tolist()
+                            for i in range(generated.shape[1] - no_repeat_ngram_size)
+                        ]
+                        if last_ngram in all_ngrams[:-1]:
+                            break
+
+            output_tokens = generated[0][input_ids.shape[1] :]
+            all_responses.append(output_tokens)
+
+        # Find max length for padding
+        max_length = max(response.shape[0] for response in all_responses)
+
+        # Get pad token id
+        pad_token_id = tokenizer.pad_token_id if tokenizer is not None else 0
+
+        # Pad all responses to the same length
+        padded_responses = []
+        for response in all_responses:
+            if response.shape[0] < max_length:
+                padding = torch.full(
+                    (max_length - response.shape[0],),
+                    pad_token_id,
+                    dtype=response.dtype,
+                    device=response.device,
+                )
+                padded_response = torch.cat([response, padding])
+            else:
+                padded_response = response
+            padded_responses.append(padded_response)
+
+        return torch.stack(padded_responses)
 
     def forward(self, tgt_input):
         batch_size, seq_len = tgt_input.shape

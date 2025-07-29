@@ -224,13 +224,17 @@ class GRPO:
 
         return metrics
 
+    def reward(self, prompt: str, responses: List[str]):
+        import random
+
+        return [random.randint(1, 10) for _ in range(len(responses))]
+
     def generate_and_score(
         self,
         prompts: List[str],
-        reward_model: nn.Module,
         max_new_tokens: int = 128,
         temperature: float = 1.0,
-        do_sample: bool = True,
+        num_responses: int = 4,
     ) -> Tuple[List[str], torch.Tensor]:
         """
         Generate responses and compute rewards.
@@ -245,43 +249,33 @@ class GRPO:
         Returns:
             Generated responses and their rewards
         """
-        responses = []
         all_rewards = []
-
+        all_responses = []
         for prompt in prompts:
-            # Tokenize prompt
-            inputs = self.tokenizer(
-                prompt, return_tensors="pt", padding=True, truncation=True
-            )
+            inputs = self.tokenizer(prompt, return_tensors="pt")["input_ids"]
 
-            # Generate response
+            # Generate multiple responses
             with torch.no_grad():
                 outputs = self.policy_model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
+                    input_ids=inputs,
                     temperature=temperature,
-                    do_sample=do_sample,
-                    pad_token_id=self.tokenizer.eos_token_id,
+                    max_new_tokens=max_new_tokens,
+                    num_responses=num_responses,
+                    tokenizer=self.tokenizer,
                 )
 
             # Decode response
-            response = self.tokenizer.decode(
-                outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
-            )
-            responses.append(response)
-
-            # Compute reward
-            full_text = prompt + response
-            reward_inputs = self.tokenizer(
-                full_text, return_tensors="pt", padding=True, truncation=True
-            )
+            response = [
+                self.tokenizer.decode(outputs[i], skip_special_tokens=True)
+                for i in range(len(outputs))
+            ]
+            all_responses.append(response)
 
             with torch.no_grad():
-                reward_outputs = reward_model(**reward_inputs)
-                reward = reward_outputs.logits.squeeze().item()
-                all_rewards.append(reward)
+                reward_outputs = self.reward(prompt=prompt, responses=response)
+                all_rewards.append(reward_outputs)
 
-        return responses, torch.tensor(all_rewards)
+        return all_responses, torch.tensor(all_rewards)
 
 
 def get_model(config: SakhiConfig):
@@ -295,6 +289,7 @@ def get_model(config: SakhiConfig):
         resume=config.train_parameters.resume,
         resize_model_output_to_size=config.model_parameters.vocab_size,
         fp16=True,
+        for_inference=True,
     )
     return sakhi_model
 
@@ -303,17 +298,30 @@ def reward_model(query: str, responses: List[str]):
     pass
 
 
+def prepare_instruct_prompt(prompt: str):
+    prefix = "<|instruction|>"
+    response_tag = "<|response|>"
+
+    instruct_prompt = f"{prefix} {prompt} {response_tag} "
+    return instruct_prompt
+
+
 if __name__ == "__main__":
-    config_path = "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-llm/sakhilabs/configs/sakhi-telugu-1B-pretrained-0725.yaml"
+    config_path = "sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml"
     config = SakhiConfig._load_config(config_path=config_path)
 
-    policy_model = get_model(config=config_path)
-    reference_model = get_model(config=config_path)
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
+
+    sample_prompts = ["నమస్కారం, మీరు ఎలా ఉన్నారు?", "తెలుగు భాష గురించి మీకు ఏమి తెలుసు?"]
+    sample_prompts = [prepare_instruct_prompt(prompt) for prompt in sample_prompts]
+
+    policy_model = get_model(config=config)
+    reference_model = get_model(config=config)
 
     grpo = GRPO(
         policy_model=policy_model, reference_model=reference_model, tokenizer=tokenizer
     )
 
-    sample_prompts = ["నమస్కారం, మీరు ఎలా ఉన్నారు?", "తెలుగు భాష గురించి మీకు ఏమి తెలుసు?"]
-    grpo.generate_and_score(prompts=sample_prompts, reward_model=reward_model)
+    all_responses, all_rewards = grpo.generate_and_score(prompts=sample_prompts)
+
+    print("YES")
