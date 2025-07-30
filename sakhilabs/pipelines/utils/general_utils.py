@@ -61,7 +61,7 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     if config.train_parameters.resume:
         if os.path.isfile(config.train_parameters.resume):
             state_dict = torch.load(
-                config.train_parameters.resume, map_location=f"cuda:{rank}"
+                config.train_parameters.resume, map_location=f"cuda:{rank}", weights_only=False
             )
             model.load_state_dict(state_dict)
 
