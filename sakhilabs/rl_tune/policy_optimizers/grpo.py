@@ -224,58 +224,51 @@ class GRPO:
 
         return metrics
 
-    def reward(self, prompt: str, responses: List[str]):
+    def reward(self, prompt: str, responses: List[str]) -> List[int]:
+        judge_model = "gpt4o"
+        print(judge_model)
         import random
-
         return [random.randint(1, 10) for _ in range(len(responses))]
 
-    def generate_and_score(
+    def generate_samples(
         self,
-        prompts: List[str],
-        max_new_tokens: int = 128,
+        prompt: str,
+        max_new_tokens: int,
+        num_responses: int,
         temperature: float = 1.0,
-        num_responses: int = 4,
-    ) -> Tuple[List[str], torch.Tensor]:
-        """
-        Generate responses and compute rewards.
-
-        Args:
-            prompts: List of prompt strings
-            reward_model: Model to compute rewards
-            max_new_tokens: Maximum number of tokens to generate
-            temperature: Sampling temperature
-            do_sample: Whether to use sampling
-
-        Returns:
-            Generated responses and their rewards
-        """
-        all_rewards = []
+    ) -> List[str]:
         all_responses = []
-        for prompt in prompts:
-            inputs = self.tokenizer(prompt, return_tensors="pt")["input_ids"]
+        inputs = self.tokenizer(prompt, return_tensors="pt")["input_ids"]
 
-            # Generate multiple responses
-            with torch.no_grad():
-                outputs = self.policy_model.generate(
-                    input_ids=inputs,
-                    temperature=temperature,
-                    max_new_tokens=max_new_tokens,
-                    num_responses=num_responses,
-                    tokenizer=self.tokenizer,
-                )
+        # Generate multiple responses
+        with torch.no_grad():
+            outputs = self.policy_model.generate(
+                input_ids=inputs,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+                num_responses=num_responses,
+                tokenizer=self.tokenizer,
+            )
 
-            # Decode response
-            response = [
-                self.tokenizer.decode(outputs[i], skip_special_tokens=True)
-                for i in range(len(outputs))
-            ]
-            all_responses.append(response)
+        # Decode response
+        response = [
+            self.tokenizer.decode(outputs[i], skip_special_tokens=True)
+            for i in range(len(outputs))
+        ]
+        return response
 
-            with torch.no_grad():
-                reward_outputs = self.reward(prompt=prompt, responses=response)
-                all_rewards.append(reward_outputs)
-
-        return all_responses, torch.tensor(all_rewards)
+    def __call__(self, prompts: List[str], max_new_tokens: int, num_responses: int):
+        state_action_pairs = {}
+        
+        for i in range(len(prompts)):
+            generated_samples = self.generate_samples(prompt=prompts[i], num_responses=num_responses, max_new_tokens=max_new_tokens)
+            rewards = self.reward(prompt=prompts[i], responses=generated_samples)
+            
+            state_action_pairs.update({i: {"prompt": prompts[i],
+                                           "responses": generated_samples,
+                                           "rewards": rewards}})
+        
+        return state_action_pairs
 
 
 def get_model(config: SakhiConfig):
@@ -316,12 +309,12 @@ if __name__ == "__main__":
     sample_prompts = [prepare_instruct_prompt(prompt) for prompt in sample_prompts]
 
     policy_model = get_model(config=config)
-    reference_model = get_model(config=config)
+    reference_model = None  # get_model(config=config)
 
     grpo = GRPO(
         policy_model=policy_model, reference_model=reference_model, tokenizer=tokenizer
     )
 
-    all_responses, all_rewards = grpo.generate_and_score(prompts=sample_prompts)
+    grpo(prompts=sample_prompts, max_new_tokens=128, num_responses=4)
 
     print("YES")
