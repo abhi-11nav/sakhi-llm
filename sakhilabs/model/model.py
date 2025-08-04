@@ -80,11 +80,13 @@ class SakhiModel(nn.Module):
         no_repeat_ngram_size: int = 4,
         num_responses: int = 4,
         tokenizer=None,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         all_responses = []
+        all_probs = []
 
         for _ in range(num_responses):
             generated = input_ids.clone()
+            generated_probs = []
 
             with torch.no_grad():
                 for _ in range(max_new_tokens):
@@ -121,6 +123,11 @@ class SakhiModel(nn.Module):
                     # Sampling with temperature
                     probs = F.softmax(logits / temperature, dim=-1)
                     next_token = torch.multinomial(probs, num_samples=1)
+
+                    # Store probability of generated token
+                    token_prob = probs[0][next_token[0]]
+                    generated_probs.append(token_prob)
+
                     generated = torch.cat([generated, next_token], dim=1)
 
                     # Stop if repeating n-grams
@@ -138,6 +145,7 @@ class SakhiModel(nn.Module):
 
             output_tokens = generated[0][input_ids.shape[1] :]
             all_responses.append(output_tokens)
+            all_probs.append(torch.stack(generated_probs))
 
         # Find max length for padding
         max_length = max(response.shape[0] for response in all_responses)
@@ -147,7 +155,8 @@ class SakhiModel(nn.Module):
 
         # Pad all responses to the same length
         padded_responses = []
-        for response in all_responses:
+        padded_probs = []
+        for response, response_probs in zip(all_responses, all_probs):
             if response.shape[0] < max_length:
                 padding = torch.full(
                     (max_length - response.shape[0],),
@@ -155,12 +164,22 @@ class SakhiModel(nn.Module):
                     dtype=response.dtype,
                     device=response.device,
                 )
+                prob_padding = torch.zeros(
+                    (max_length - response.shape[0],),
+                    dtype=response_probs.dtype,
+                    device=response_probs.device,
+                )
                 padded_response = torch.cat([response, padding])
+                padded_prob = torch.cat([response_probs.squeeze(-1), prob_padding])
             else:
                 padded_response = response
+                padded_prob = response_probs
             padded_responses.append(padded_response)
+            padded_probs.append(padded_prob)
 
-        return torch.stack(padded_responses)
+        return torch.stack(padded_responses), torch.stack(
+            [prob.squeeze() if prob.dim() > 1 else prob for prob in padded_probs]
+        )
 
     def forward(self, tgt_input):
         batch_size, seq_len = tgt_input.shape

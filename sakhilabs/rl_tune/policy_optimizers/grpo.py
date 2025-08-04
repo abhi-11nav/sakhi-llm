@@ -22,7 +22,7 @@ class GRPO:
     def __init__(
         self,
         policy_model: nn.Module,
-        reference_model: Optional[nn.Module] = None,
+        reference_model: nn.Module,
         tokenizer=None,
         beta: float = 0.1,
         group_size: int = 4,
@@ -224,25 +224,25 @@ class GRPO:
 
         return metrics
 
-    def reward(self, prompt: str, responses: List[str]) -> List[int]:
+    def reward(self, prompt: str, responses: List[str]) -> torch.Tensor:
         judge_model = "gpt4o"
         print(judge_model)
         import random
-        return [random.randint(1, 10) for _ in range(len(responses))]
 
-    def generate_samples(
+        return torch.tensor([random.randint(1, 10) for _ in range(len(responses))])
+
+    def generate_samples_with_poilcy(
         self,
         prompt: str,
         max_new_tokens: int,
         num_responses: int,
         temperature: float = 1.0,
     ) -> List[str]:
-        all_responses = []
         inputs = self.tokenizer(prompt, return_tensors="pt")["input_ids"]
 
         # Generate multiple responses
         with torch.no_grad():
-            outputs = self.policy_model.generate(
+            raw_response_tokens, probs = self.policy_model.generate(
                 input_ids=inputs,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
@@ -251,23 +251,93 @@ class GRPO:
             )
 
         # Decode response
-        response = [
-            self.tokenizer.decode(outputs[i], skip_special_tokens=True)
-            for i in range(len(outputs))
+        decode_response = [
+            self.tokenizer.decode(raw_response_tokens[i], skip_special_tokens=True)
+            for i in range(len(raw_response_tokens))
         ]
-        return response
+        return decode_response, raw_response_tokens, probs
+
+    def generate_probs_with_reference_model(
+        self, tokens: torch.Tensor, prompt_cutoff_length: int, temperature: float = 1.0
+    ):
+        # Get logits from the reference model
+        reference_tokens_output = self.reference_model(
+            tokens
+        )  # [batch, seq_len, vocab_size]
+
+        # Convert logits to probabilities
+        probs = F.softmax(
+            reference_tokens_output / temperature, dim=-1
+        )  # [batch, seq_len, vocab_size]
+
+        # Gather the probability for the actual token at each position
+        token_probs = torch.gather(probs, 2, tokens.unsqueeze(-1)).squeeze(
+            -1
+        )  # [batch, seq_len]
+
+        # Return only the probabilities after the prompt
+        return token_probs[:, prompt_cutoff_length:]
+
+    def compute_advantage(self, rewards: torch.Tensor) -> torch.Tensor:
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float32)
+
+        mean_reward = rewards_tensor.mean()
+        std_reward = rewards_tensor.std() if len(rewards) > 1 else 1.0
+
+        advantages = (rewards_tensor - mean_reward) / std_reward
+        return advantages
 
     def __call__(self, prompts: List[str], max_new_tokens: int, num_responses: int):
         state_action_pairs = {}
-        
+
         for i in range(len(prompts)):
-            generated_samples = self.generate_samples(prompt=prompts[i], num_responses=num_responses, max_new_tokens=max_new_tokens)
-            rewards = self.reward(prompt=prompts[i], responses=generated_samples)
-            
-            state_action_pairs.update({i: {"prompt": prompts[i],
-                                           "responses": generated_samples,
-                                           "rewards": rewards}})
-        
+            (
+                online_policy_generated_samples,
+                online_policy_tokens,
+                online_policy_generated_probs,
+            ) = self.generate_samples_with_poilcy(
+                prompt=prompts[i],
+                num_responses=num_responses,
+                max_new_tokens=max_new_tokens,
+            )
+
+            online_policy_prob_sum = torch.sum(
+                torch.log(online_policy_generated_probs), dim=1
+            )
+            rewards = self.reward(
+                prompt=prompts[i], responses=online_policy_generated_samples
+            )
+
+            self.tokenizer(prompts[i], return_tensors="pt")["input_ids"]
+            advantage_factor = self.compute_advantage(rewards=rewards)
+
+            prompt_tokens = self.tokenizer(prompts[i], return_tensors="pt")["input_ids"]
+            prompt_tokens_repeated = prompt_tokens.repeat(
+                online_policy_tokens.size(0), 1
+            )
+            reference_model_input_tokens = torch.cat(
+                [prompt_tokens_repeated, online_policy_tokens], dim=1
+            )
+
+            reference_model_probs = self.generate_probs_with_reference_model(
+                tokens=reference_model_input_tokens,
+                prompt_cutoff_length=prompt_tokens.shape[1],
+            )
+
+            reference_policy_prob_sum = torch.sum(
+                torch.log(reference_model_probs), dim=1
+            )
+
+            state_action_pairs.update(
+                {
+                    i: {
+                        "prompt": prompts[i],
+                        "responses": online_policy_generated_samples,
+                        "rewards": rewards,
+                    }
+                }
+            )
+
         return state_action_pairs
 
 
@@ -309,7 +379,7 @@ if __name__ == "__main__":
     sample_prompts = [prepare_instruct_prompt(prompt) for prompt in sample_prompts]
 
     policy_model = get_model(config=config)
-    reference_model = None  # get_model(config=config)
+    reference_model = get_model(config=config)
 
     grpo = GRPO(
         policy_model=policy_model, reference_model=reference_model, tokenizer=tokenizer
