@@ -148,6 +148,6 @@ if __name__ == "__main__":
         dataset=dpo_dataset,
     )
 
-    dpo(epochs=3)
+    dpo(epochs=3, batch_size=10)
 
     print("YES")
