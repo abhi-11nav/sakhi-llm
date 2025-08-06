@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -20,6 +21,7 @@ class DirectPreferenceOptimization:
         reference_model: nn.Module,
         tokenizer,
         dataset: str,
+        save_dir: str,
         beta: float = 0.9,
         max_grad_norm: float = 2.0,
         learning_rate: float = 1e-5,
@@ -32,12 +34,14 @@ class DirectPreferenceOptimization:
         self.beta = beta
         self.max_grad_norm = max_grad_norm
         self.device = device
+        self.save_dir = save_dir  # <- NEW
+
+        os.makedirs(self.save_dir, exist_ok=True)  # <- Ensure directory exists
 
         self.optimizer = torch.optim.AdamW(
             self.policy_model.parameters(), lr=learning_rate
         )
 
-        # Freeze reference model
         self.reference_model.eval()
         for param in self.reference_model.parameters():
             param.requires_grad = False
@@ -126,6 +130,12 @@ class DirectPreferenceOptimization:
                 )
 
             avg_loss = total_loss / len(dataloader)
+
+            model_path = os.path.join(
+                self.save_dir, f"policy_model_epoch_{epoch + 1}.pt"
+            )
+            torch.save(self.policy_model.state_dict(), model_path)
+            print(f"Saved model to {model_path}")
             print(f"Epoch [{epoch + 1}] Completed. Average Loss: {avg_loss:.4f}")
 
 
@@ -161,6 +171,7 @@ if __name__ == "__main__":
         reference_model=reference_model,
         tokenizer=tokenizer,
         dataset=dpo_dataset,
+        save_dir="preference_tuning_save_dir",
     )
 
     dpo(epochs=3, batch_size=10)
