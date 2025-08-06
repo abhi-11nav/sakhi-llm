@@ -19,7 +19,7 @@ class DirectPreferenceOptimization:
         policy_model: nn.Module,
         reference_model: nn.Module,
         tokenizer,
-        dataset: List[Dict],
+        dataset: str,
         beta: float = 0.9,
         max_grad_norm: float = 2.0,
         learning_rate: float = 1e-5,
@@ -48,12 +48,16 @@ class DirectPreferenceOptimization:
         with torch.no_grad() if not model.training else torch.enable_grad():
             logits = model(tokens)  # [batch, seq_len, vocab_size]
             log_probs = F.log_softmax(logits, dim=-1)
-            token_log_probs = torch.gather(log_probs, 2, tokens.unsqueeze(-1)).squeeze(-1)
+            token_log_probs = torch.gather(log_probs, 2, tokens.unsqueeze(-1)).squeeze(
+                -1
+            )
 
         sliced_token_log_probs = token_log_probs[:, prompt_cutoff_length:]
         sliced_tokens = tokens[:, prompt_cutoff_length:]
 
-        mask = (sliced_tokens != 1).float()  # [batch, seq_len]
+        mask = (
+            sliced_tokens != self.tokenizer.pad_token_id
+        ).float()  # [batch, seq_len]
 
         return sliced_token_log_probs, mask
 
@@ -80,22 +84,33 @@ class DirectPreferenceOptimization:
 
                 prompt_cutoff = prompt.shape[1]
 
-                pos_log_policy, pos_mask = self.generate_log_probs(self.policy_model, pos_tokens, prompt_cutoff)
-                pos_log_ref, ref_mask_pos = self.generate_log_probs(self.reference_model, pos_tokens, prompt_cutoff)
+                pos_log_policy, pos_mask = self.generate_log_probs(
+                    self.policy_model, pos_tokens, prompt_cutoff
+                )
+                pos_log_ref, ref_mask_pos = self.generate_log_probs(
+                    self.reference_model, pos_tokens, prompt_cutoff
+                )
 
-                neg_log_policy, neg_mask = self.generate_log_probs(self.policy_model, neg_tokens, prompt_cutoff)
-                neg_log_ref, ref_mask_neg = self.generate_log_probs(self.reference_model, neg_tokens, prompt_cutoff)
+                neg_log_policy, neg_mask = self.generate_log_probs(
+                    self.policy_model, neg_tokens, prompt_cutoff
+                )
+                neg_log_ref, ref_mask_neg = self.generate_log_probs(
+                    self.reference_model, neg_tokens, prompt_cutoff
+                )
 
                 assert torch.all(pos_mask == ref_mask_pos)
                 assert torch.all(neg_mask == ref_mask_neg)
 
                 # Compute masked reward
-                pos_reward = torch.sum((pos_log_policy - pos_log_ref) * pos_mask, dim=1) / pos_mask.sum(dim=1).clamp(min=1)
-                neg_reward = torch.sum((neg_log_policy - neg_log_ref) * neg_mask, dim=1) / neg_mask.sum(dim=1).clamp(min=1)
+                pos_reward = torch.sum(
+                    (pos_log_policy - pos_log_ref) * pos_mask, dim=1
+                ) / pos_mask.sum(dim=1).clamp(min=1)
+                neg_reward = torch.sum(
+                    (neg_log_policy - neg_log_ref) * neg_mask, dim=1
+                ) / neg_mask.sum(dim=1).clamp(min=1)
 
                 reward_diff = self.beta * (pos_reward - neg_reward)
                 loss = -torch.log(torch.sigmoid(reward_diff + 1e-8)).mean()
-
 
                 self.optimizer.zero_grad()
                 loss.backward()
