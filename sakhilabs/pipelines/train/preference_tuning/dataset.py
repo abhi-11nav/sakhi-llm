@@ -4,6 +4,14 @@ import torch
 from torch.utils.data import Dataset
 
 
+def prepare_instruct_prompt(prompt: str):
+    prefix = "<|instruction|>"
+    response_tag = "<|response|>"
+
+    instruct_prompt = f"{prefix} {prompt} {response_tag} "
+    return instruct_prompt
+
+
 class DPODataset(Dataset):
     def __init__(self, dataset_file: str, tokenizer, max_length: int = 1024):
         with open(dataset_file, "r") as f:
@@ -16,7 +24,7 @@ class DPODataset(Dataset):
 
     def __getitem__(self, idx):
         entry = self.data[idx]
-        prompt = entry["instruction"]
+        prompt = prepare_instruct_prompt(entry["instruction"])
         pos_resp = entry["response"]["positive"]
         neg_resp = entry["response"]["negative"]
 

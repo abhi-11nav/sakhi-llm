@@ -130,43 +130,13 @@ def get_model(config: SakhiConfig):
     return sakhi_model
 
 
-def prepare_instruct_prompt(prompt: str):
-    prefix = "<|instruction|>"
-    response_tag = "<|response|>"
-
-    instruct_prompt = f"{prefix} {prompt} {response_tag} "
-    return instruct_prompt
-
-
 if __name__ == "__main__":
     config_path = "sakhilabs/configs/sakhi-telugu-681M-instruct-0625.yaml"
     config = SakhiConfig._load_config(config_path=config_path)
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
 
-    dpo_dataset = [
-        {
-            "instruction": prepare_instruct_prompt("నమస్కారం, మీరు ఎలా ఉన్నారు?"),
-            "response": {
-                "positive": "కొంచెం పెద్దదిగా, చూసే స్వామీ! - అచ్చంగా నేచర్ తోనే, డైలీ రొటీతో చేసే పని. ఇప్పుడు సీన్ ఫ్యాషన్, లాంగ్ షూటింగ్ కలిసి వచ్చేశాం. అదొకటి, ఒక హిస్టరీ, ఎప్పటికీ ఎవర్ గ్రీన్. - ఇవి ప్రపంచమంతటా జరి",
-                "negative": "కోట్లు, గోడలు, మంది జనం వింటర్ సైలెంట్\u200cగా, నేచర్\u200cతో కనెక్షన్ పొందడం. ఇది జీవిత చరమాంకం అని చెప్పడానికి ఒక టెక్స్ట్. దీంట్లో 'హే, సముద్రం' లాంటి బొమ్మలు గీయడం ఉంటుంది. ఈ డేంజర్ ఎవిడెన్స్ వల్లన",
-            },
-        },
-        {
-            "instruction": prepare_instruct_prompt("తెలుగు భాష గురించి మీకు ఏమి తెలుసు?"),
-            "response": {
-                "positive": "జుగాటుతో ప్రశాంతమైన, గౌరవించబడే రూమ్! మీ ఉదయం ఇంటి నుండి, పని సూపర్బ్\u200cగా, అన్వేషించే వంటకం. ఎవరైనా నడుస్తూ, మెట్ల దగ్గర కొందరు, చేతులతో, సరదాగా! కాబట్టి టైం సేవ్ అవుతుంది. ఇక్కడ కొనడానికి వెళ్లడా",
-                "negative": "సంవత్సరం పొడవునా, అనేక రకాల వంటలు చేసి మీ తోట లోకి, దృశ్య కళ్ళుగప్పి రుచి చూడండి. ఒక బలమైన నిర్మాణం. తెలుసా, - ఈ పర్సన్ ఫుడ్ యొక్క భౌతికశాస్త్రము గుండె. ఉత్తర దేశాన్ని పరిశీలించి",
-            },
-        },
-        {
-            "instruction": prepare_instruct_prompt("తెలుగు పదబంధం 'చెట్టు నీడ' అర్థం ఏమిటి?"),
-            "response": {
-                "positive": "కొంచెం పెద్దదిగా, చూసే స్వామీ! - అచ్చంగా నేచర్ తోనే, డైలీ రొటీతో చేసే పని. ఇప్పుడు సీన్ ఫ్యాషన్, లాంగ్ షూటింగ్ కలిసి వచ్చేశాం. అదొకటి, ఒక హిస్టరీ, ఎప్పటికీ ఎవర్ గ్రీన్. - ఇవి ప్రపంచమంతటా జరి",
-                "negative": "సంవత్సరం పొడవునా, అనేక రకాల వంటలు చేసి మీ తోట లోకి, దృశ్య కళ్ళుగప్పి రుచి చూడండి. ఒక బలమైన నిర్మాణం. తెలుసా, - ఈ పర్సన్ ఫుడ్ యొక్క భౌతికశాస్త్రము గుండె. ఉత్తర దేశాన్ని పరిశీలించి",
-            },
-        },
-    ]
+    dpo_dataset = "local-data/preference_tune_data.json"
 
     policy_model = get_model(config=config)
     reference_model = get_model(config=config)

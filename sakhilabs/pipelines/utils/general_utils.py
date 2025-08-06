@@ -34,18 +34,20 @@ def do_sanity_checks(config):
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
         # SLURM should have already set these, but fallback to config if needed
-        os.environ["MASTER_ADDR"] = (
-            os.environ.get("MASTER_ADDR", config.train_parameters.master_addr)
+        os.environ["MASTER_ADDR"] = os.environ.get(
+            "MASTER_ADDR", config.train_parameters.master_addr
         )
-        os.environ["MASTER_PORT"] = (
-            os.environ.get("MASTER_PORT", str(config.train_parameters.master_port))
+        os.environ["MASTER_PORT"] = os.environ.get(
+            "MASTER_PORT", str(config.train_parameters.master_port)
         )
-        
+
         print(f"Initializing process group: rank={rank}, world_size={world_size}")
-        print(f"MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
-        
+        print(
+            f"MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}"
+        )
+
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
-        
+
         if "SLURM_LOCALID" in os.environ:
             local_rank = int(os.environ["SLURM_LOCALID"])
             torch.cuda.set_device(local_rank)
@@ -74,7 +76,8 @@ def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     if config.train_parameters.resume:
         if os.path.isfile(config.train_parameters.resume):
             state_dict = torch.load(
-                config.train_parameters.resume, map_location=f"cuda:{rank}")
+                config.train_parameters.resume, map_location=f"cuda:{rank}"
+            )
             model.load_state_dict(state_dict)
 
     model.resize_token_embeddings(new_vocab_size=len(tokenizer))
