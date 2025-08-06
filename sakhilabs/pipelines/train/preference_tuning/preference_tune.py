@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(config.paths.tokenizer_path)
 
-    dpo_dataset = "local-data/preference_tune_data.json"
+    dpo_dataset = "sakhilabs/pipelines/train/preference_tuning/preference_data.json"
 
     policy_model = get_model(config=config)
     reference_model = get_model(config=config)
