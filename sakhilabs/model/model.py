@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
 
 from sakhilabs.model.components.decoder import TransformerDecoderBlock
 from sakhilabs.model.components.nn_utils import generate_square_subsequent_mask

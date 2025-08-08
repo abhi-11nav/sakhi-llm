@@ -1,6 +1,5 @@
-from typing import Dict, List, Optional, Tuple
+from typing import List
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -112,7 +111,6 @@ class GRPO:
         return advantages
 
     def __call__(self, prompts: List[str], max_new_tokens: int, num_responses: int):
-        state_action_pairs = {}
         total_loss = []
 
         for i in range(len(prompts)):
