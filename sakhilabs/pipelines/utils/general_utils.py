@@ -33,16 +33,31 @@ def do_sanity_checks(config):
 
 def setup(rank: int, world_size: int, config):
     if world_size > 1:
-        os.environ["MASTER_ADDR"] = (
-            os.environ["MASTER_ADDR"]
-            if "MASTER_ADDR" in os.environ
-            else config.train_parameters.master_addr
+        # SLURM should have already set these, but fallback to config if needed
+        os.environ["MASTER_ADDR"] = os.environ.get(
+            "MASTER_ADDR", config.train_parameters.master_addr
         )
-        os.environ["MASTER_PORT"] = config.train_parameters.master_port
+        os.environ["MASTER_PORT"] = os.environ.get(
+            "MASTER_PORT", str(config.train_parameters.master_port)
+        )
+
+        print(f"Initializing process group: rank={rank}, world_size={world_size}")
+        print(
+            f"MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}"
+        )
+
         init_process_group(backend="nccl", rank=rank, world_size=world_size)
-        torch.cuda.set_device(rank)
+
+        if "SLURM_LOCALID" in os.environ:
+            local_rank = int(os.environ["SLURM_LOCALID"])
+            torch.cuda.set_device(local_rank)
+            print(f"Set CUDA device to local_rank={local_rank}")
+        else:
+            torch.cuda.set_device(rank % torch.cuda.device_count())
+            print(f"Set CUDA device to {rank % torch.cuda.device_count()}")
     else:
         torch.cuda.set_device(0)
+        print("Single GPU mode: set device to 0")
 
 
 def get_sakhi_model(rank: int, world_size: int, config: SakhiConfig, tokenizer):

@@ -27,7 +27,25 @@ def get_sakhi_model(
     resume: Optional[str] = None,
     resize_model_output_to_size: Optional[int] = None,
     fp16: bool = True,
+    for_inference: bool = False,
 ):
+    if for_inference:
+        model = SakhiModel(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            ff_dim=ff_dim,
+            vocab_size=vocab_size,
+            num_layers=num_layers,
+        )
+
+        if resume:
+            if os.path.isfile(resume):
+                device = f"cuda:{rank}" if torch.cuda.is_available() else "cpu"
+                state_dict = torch.load(resume, map_location=device)
+                model.load_state_dict(state_dict)
+
+        return model
+
     if train_mode != TrainMode.GENERAL:
         if len(world_size) <= 1:
             raise ValueError(

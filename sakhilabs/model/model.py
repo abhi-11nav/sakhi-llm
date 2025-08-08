@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from sakhilabs.model.components.decoder import TransformerDecoderBlock
 from sakhilabs.model.components.nn_utils import generate_square_subsequent_mask
@@ -66,6 +67,118 @@ class SakhiModel(nn.Module):
         )
         new_out.bias.data[old_out_dim:] = 0.0
         self.output_projection = new_out
+
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        max_new_tokens: int = 640,
+        temperature: float = 0.4,
+        top_k: int = 100,
+        top_p: float = 0.90,
+        repetition_penalty: float = 1.2,
+        no_repeat_ngram_size: int = 4,
+        num_responses: int = 4,
+        tokenizer=None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        all_responses = []
+        all_probs = []
+
+        for _ in range(num_responses):
+            generated = input_ids.clone()
+            generated_probs = []
+
+            with torch.no_grad():
+                for _ in range(max_new_tokens):
+                    output = self(generated)
+                    logits = output[:, -1, :]
+
+                    # Repetition penalty
+                    for token_id in set(generated[0].tolist()):
+                        logits[0, token_id] /= repetition_penalty
+
+                    # Top-k filtering
+                    if top_k > 0:
+                        top_k_values, _ = torch.topk(logits, top_k)
+                        logits[logits < top_k_values[:, -1].unsqueeze(1)] = -float(
+                            "Inf"
+                        )
+
+                    # Top-p (nucleus) filtering
+                    if top_p < 1.0:
+                        sorted_logits, sorted_indices = torch.sort(
+                            logits, descending=True
+                        )
+                        cumulative_probs = torch.cumsum(
+                            F.softmax(sorted_logits, dim=-1), dim=-1
+                        )
+                        sorted_indices_to_remove = cumulative_probs > top_p
+                        sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[
+                            :, :-1
+                        ].clone()
+                        sorted_indices_to_remove[:, 0] = 0
+                        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                        logits[0, indices_to_remove] = -float("Inf")
+
+                    # Sampling with temperature
+                    probs = F.softmax(logits / temperature, dim=-1)
+                    next_token = torch.multinomial(probs, num_samples=1)
+
+                    # Store probability of generated token
+                    token_prob = probs[0][next_token[0]]
+                    generated_probs.append(token_prob)
+
+                    generated = torch.cat([generated, next_token], dim=1)
+
+                    # Stop if repeating n-grams
+                    if (
+                        no_repeat_ngram_size > 0
+                        and generated.shape[1] > no_repeat_ngram_size
+                    ):
+                        last_ngram = generated[0, -no_repeat_ngram_size:].tolist()
+                        all_ngrams = [
+                            generated[0, i : i + no_repeat_ngram_size].tolist()
+                            for i in range(generated.shape[1] - no_repeat_ngram_size)
+                        ]
+                        if last_ngram in all_ngrams[:-1]:
+                            break
+
+            output_tokens = generated[0][input_ids.shape[1] :]
+            all_responses.append(output_tokens)
+            all_probs.append(torch.stack(generated_probs))
+
+        # Find max length for padding
+        max_length = max(response.shape[0] for response in all_responses)
+
+        # Get pad token id
+        pad_token_id = tokenizer.pad_token_id if tokenizer is not None else 0
+
+        # Pad all responses to the same length
+        padded_responses = []
+        padded_probs = []
+        for response, response_probs in zip(all_responses, all_probs):
+            if response.shape[0] < max_length:
+                padding = torch.full(
+                    (max_length - response.shape[0],),
+                    pad_token_id,
+                    dtype=response.dtype,
+                    device=response.device,
+                )
+                prob_padding = torch.zeros(
+                    (max_length - response.shape[0],),
+                    dtype=response_probs.dtype,
+                    device=response_probs.device,
+                )
+                padded_response = torch.cat([response, padding])
+                padded_prob = torch.cat([response_probs.squeeze(-1), prob_padding])
+            else:
+                padded_response = response
+                padded_prob = response_probs
+            padded_responses.append(padded_response)
+            padded_probs.append(padded_prob)
+
+        return torch.stack(padded_responses), torch.stack(
+            [prob.squeeze() if prob.dim() > 1 else prob for prob in padded_probs]
+        )
 
     def forward(self, tgt_input):
         batch_size, seq_len = tgt_input.shape
