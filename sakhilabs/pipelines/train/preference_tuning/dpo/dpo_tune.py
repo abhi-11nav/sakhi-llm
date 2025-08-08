@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.pipelines.train.preference_tuning.dataset import (
+from sakhilabs.pipelines.train.preference_tuning.dpo.dataset import (
     DPODataset, dpo_collate_fn)
 from sakhilabs.pipelines.utils.constants import TrainMode
 from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
