@@ -1,4 +1,4 @@
-from sakhilabs.pipelines.tokenizer.train_tokenzier import train_tokenizer
+from sakhilabs.pipelines.tokenizer.train.tokenizer_BPE import train_tokenizer
 
 
 def sakhi_tokenizer_train_args(subparsers):
