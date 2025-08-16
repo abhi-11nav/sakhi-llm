@@ -39,7 +39,7 @@ def get_dataset(
     max_samples: Optional[int] = None,
 ) -> DataLoader:
     dataset = SakhiPreTrainDataset(
-        jsonl_path=dataset_path,
+        dataset_folder=dataset_path,
         chunk_length=chunk_length,
         start_sample=start_sample,
         max_samples=max_samples,

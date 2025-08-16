@@ -14,7 +14,7 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizerFast
 
 from sakhilabs.configs.utils.load_config import SakhiConfig
-from sakhilabs.data.loaders.pretrain import SakhiPreTrainDataset
+from sakhilabs.pipelines.train.pretrain.dataset import SakhiPreTrainDataset
 from sakhilabs.pipelines.utils.constants import TrainMode
 from sakhilabs.pipelines.utils.cook_model import get_sakhi_model
 from sakhilabs.pipelines.utils.general_utils import (do_sanity_checks, setup,
@@ -60,11 +60,12 @@ def train(
         # Create dataset
         logger.info("Creating dataset")
         dataset = SakhiPreTrainDataset(
-            config.paths.dataset_path,
+            dataset_folder=config.paths.dataset_path,
             chunk_length=config.model_parameters.chunk_length,
-            start_sample=config.data_loader.start_sample,
+            max_samples=None,
+            start_sample=0,
+            delete_after_read=True,
         )
-
         logger.info(f"Vocabulary size: {config.model_parameters.vocab_size}")
         logger.info("Initializing Sakhi model...")
 
@@ -396,6 +397,6 @@ def pretraining_run(config: SakhiConfig):
 
 
 if __name__ == "__main__":
-    config_path = "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-llm/sakhilabs/configs/sakhi-telugu-1B-pretrained-0725.yaml"
+    config_path = "sakhilabs/configs/sakhi-telugu-681M-pretrained-0625.yaml"
     config = SakhiConfig._load_config(config_path=config_path)
     pretraining_run(config=config)
