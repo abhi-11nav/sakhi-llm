@@ -58,6 +58,10 @@ def evaluate(loader: DataLoader, model: nn.Module, criterion, rank: int):
     return avg_loss
 
 
+def get_labels(instructions) -> torch.Tensor:
+    return torch.tensor([88])
+
+
 def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
     try:
         log_dir = config.paths.log_dir
@@ -191,8 +195,9 @@ def train(rank: int, world_size: int, config: SakhiConfig, tokenizer):
                 batch_start_time = time.time()
 
                 input_ids = batch["input_ids"].to(rank, non_blocking=True)
-                labels = batch["labels"].to(rank, non_blocking=True)
+                instructions = batch["instruction"].to(rank, non_blocking=True)
 
+                labels = get_labels(instructions)
                 valid_tokens = (labels != -100).sum().item()
                 logger.info(f"Valid tokens per batch: {valid_tokens}")
 
