@@ -26,7 +26,7 @@ train_parameters:
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
   mode: "general"
-  resume: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-telugu-681M-instruct-0625/pytorch_model.bin"
+  resume:""
 
 logger:
   wandb: False
