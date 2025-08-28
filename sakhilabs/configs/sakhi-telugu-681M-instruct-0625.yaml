@@ -1,5 +1,5 @@
 paths:
-  dataset_path: "/root/data/data/final_instruction_tuned.json"
+  dataset_path: "/home/abhi11/scratch/abhinav/PRETRAINING_DATASET"
   tokenizer_path: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-telugu-681M-instruct-0625/tokenizer"
   save_dir: "local-data"
 
