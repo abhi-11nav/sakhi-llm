@@ -30,6 +30,7 @@ train_parameters:
 
 logger:
   wandb: False
+  mode: "offline"
 
 data_loader:
   num_workers: 0

@@ -1,7 +1,7 @@
 paths:
-  tokenizer_path: ""
-  dataset_path: ""
-  save_dir: ""
+  dataset_path: "/home/abhi11/scratch/abhinav/PRETRAINING_DATASET"
+  tokenizer_path: "/home/abhi11/projects/def-tusharma/abhi11/sakhi/repos/sakhi-telugu-681M-pretrained-0625/tokenizer"
+  save_dir: "local-data"
 
 model_parameters:
   embed_dim: 2048
@@ -29,6 +29,7 @@ train_parameters:
 
 logger:
   wandb: True
+  mode: "offline"
 
 data_loader:
   num_workers: 0
