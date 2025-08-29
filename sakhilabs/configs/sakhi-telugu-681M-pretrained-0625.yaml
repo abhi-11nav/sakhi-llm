@@ -25,8 +25,8 @@ train_parameters:
   gradient_clipping_max_norm: 3.0
   call_torch_compile_on_model: False
   gradient_accumulation_steps: 2
-  resume: ""
-
+  resume: null
+  mode: "ddp"
 logger:
   wandb: False
   mode: "offline"
