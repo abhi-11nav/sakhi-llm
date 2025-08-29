@@ -28,7 +28,7 @@ train_parameters:
   resume: ""
 
 logger:
-  wandb: True
+  wandb: False
   mode: "offline"
 
 data_loader:
