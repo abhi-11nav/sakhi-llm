@@ -47,7 +47,7 @@ def get_sakhi_model(
         return model
 
     if train_mode != TrainMode.GENERAL:
-        if len(world_size) <= 1:
+        if world_size <= 1:
             raise ValueError(
                 "world_size must be greater than 1 for multitraining setting"
             )
